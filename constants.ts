@@ -1,7 +1,7 @@
 import { Project, TimeRecord, Worker, Transaction, User, ActivityLog } from "./types";
 
 export const MOCK_USERS: User[] = [
-    { id: 'u1', username: 'admin', name: 'Quản Trị Viên', role: 'admin' },
+    { id: 'u1', username: 'admin', name: 'Tuấn', role: 'admin' },
     { id: 'u2', username: 'luc', name: 'Lực', role: 'user' },
     { id: 'u3', username: 'du', name: 'Dũ', role: 'user' },
 ];
@@ -77,6 +77,6 @@ export const MOCK_TRANSACTIONS: Transaction[] = [
 ];
 
 export const MOCK_LOGS: ActivityLog[] = [
-    { id: 'l1', userId: 'u1', userName: 'Quản Trị Viên', action: 'Đăng nhập', details: 'Đăng nhập vào hệ thống', timestamp: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString() },
+    { id: 'l1', userId: 'u1', userName: 'Tuấn', action: 'Đăng nhập', details: 'Đăng nhập vào hệ thống', timestamp: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString() },
     { id: 'l2', userId: 'u2', userName: 'Lực', action: 'Chấm công', details: 'Chấm công cho Nguyễn Văn A (p1)', timestamp: new Date().toISOString() },
 ];
