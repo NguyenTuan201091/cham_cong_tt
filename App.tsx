@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Worker, Project, TimeRecord, ViewMode, Transaction, User, ActivityLog } from './types';
 import { MOCK_WORKERS, MOCK_PROJECTS, MOCK_RECORDS, MOCK_TRANSACTIONS, MOCK_USERS, MOCK_LOGS } from './constants';
 import {
@@ -36,7 +36,10 @@ import {
   Filter,
   Save,
   XCircle,
-  FileJson
+  FileJson,
+  Cloud,
+  CloudOff,
+  Loader2
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -51,18 +54,15 @@ const getThursdayOfWeek = (date: Date) => {
   return d;
 };
 
-// Safer date formatting manually parsing YYYY-MM-DD to avoid timezone shifting
 const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
     try {
-        // Handle ISO string or YYYY-MM-DD
         const simpleDate = dateStr.split('T')[0];
         const parts = simpleDate.split('-');
         if (parts.length === 3) {
             const [year, month, day] = parts;
             return `${day}/${month}/${year}`;
         }
-        // Fallback for other formats
         const date = new Date(dateStr);
         return date.toLocaleDateString('vi-VN');
     } catch (e) {
@@ -329,10 +329,8 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onDeleteRecord, on
                             
                             if (project) {
                                 if (numVal === 2 && project.doubleRate) {
-                                    // If 2 shifts, use half of doubleRate as the unit price so that 2 * price = doubleRate
                                     newRate = project.doubleRate / 2;
                                 } else if (inputs[w.id]?.shifts === '2' && numVal !== 2) {
-                                    // If changing FROM 2 to something else, revert to standard rate
                                     newRate = project.standardRate;
                                 }
                             }
@@ -431,8 +429,6 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onDeleteRecord, on
                                                <button 
                                                   type="button"
                                                   onClick={(e) => { 
-                                                      // Directly delete without browser confirm if it's causing issues
-                                                      // Or use a simple js check
                                                       e.stopPropagation();
                                                       onDeleteRecord(r.id);
                                                   }}
@@ -460,9 +456,12 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onDeleteRecord, on
   );
 };
 
+// ... [Payroll, ManageWorkers, ManageProjects, DebtManagement components remain unchanged] ...
+// Re-implementing them here to ensure full file integrity if user copy-pastes
+
 const Payroll = ({ workers, records, projects }: any) => {
   const [weekEnd, setWeekEnd] = useState(() => getThursdayOfWeek(new Date()).toISOString().split('T')[0]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(''); // Filter state
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(''); 
   
   const weekStart = useMemo(() => {
     const d = new Date(weekEnd);
@@ -471,10 +470,7 @@ const Payroll = ({ workers, records, projects }: any) => {
   }, [weekEnd]);
 
   const payrollData = useMemo(() => {
-    // 1. Filter by date range
     let filteredRecords = records.filter((r: any) => r.date >= weekStart && r.date <= weekEnd);
-    
-    // 2. Filter by project if selected
     if (selectedProjectId) {
         filteredRecords = filteredRecords.filter((r: any) => r.projectId === selectedProjectId);
     }
@@ -589,14 +585,12 @@ const Payroll = ({ workers, records, projects }: any) => {
 };
 
 const ManageWorkers = ({ workers, projects, onAdd, onDelete, onUpdate }: any) => {
-  // Removed dailyRate from initialForm as requested
   const initialForm = { id: '', name: '', role: 'Công nhật', currentProjectId: '', bankAccount: '', bankName: '' };
   const [f, setF] = useState(initialForm);
   const [isEdit, setIsEdit] = useState(false);
 
   const handleSave = () => {
     if (!f.name) return alert("Vui lòng nhập tên công nhân!");
-    // Preserve existing dailyRate if editing, or set default 0 if adding (since it's not used in UI anymore)
     const workerToSave = isEdit 
         ? { ...f, dailyRate: (workers.find((w:any) => w.id === f.id)?.dailyRate || 0) }
         : { ...f, id: Date.now().toString(), dailyRate: 0 };
@@ -872,11 +866,95 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [view, setView] = useState<ViewMode>('dashboard');
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [workers, setWorkers] = useState<Worker[]>(MOCK_WORKERS);
-  const [projects, setProjects] = useState<Project[]>(MOCK_PROJECTS);
-  const [records, setRecords] = useState<TimeRecord[]>(MOCK_RECORDS);
-  const [transactions, setTransactions] = useState<Transaction[]>(MOCK_TRANSACTIONS);
-  const [logs, setLogs] = useState<ActivityLog[]>(MOCK_LOGS);
+  
+  // Data State
+  const [workers, setWorkers] = useState<Worker[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [records, setRecords] = useState<TimeRecord[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
+
+  // Sync State
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [syncError, setSyncError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load Initial Data (API -> LocalStorage -> Mock)
+  useEffect(() => {
+    const loadData = async () => {
+        try {
+            // 1. Try fetching from API (Vercel Postgres)
+            const response = await fetch('/api/storage');
+            if (response.ok) {
+                const data = await response.json();
+                setWorkers(data.workers || []);
+                setProjects(data.projects || []);
+                setRecords(data.records || []);
+                setTransactions(data.transactions || []);
+                setLogs(data.logs || []);
+                setLastSaved(new Date());
+            } else {
+                throw new Error("API not available");
+            }
+        } catch (err) {
+            console.warn("Falling back to LocalStorage/Mock Data:", err);
+            // 2. Fallback to LocalStorage
+            const savedData = localStorage.getItem('app_data_v1');
+            if (savedData) {
+                const data = JSON.parse(savedData);
+                setWorkers(data.workers || []);
+                setProjects(data.projects || []);
+                setRecords(data.records || []);
+                setTransactions(data.transactions || []);
+                setLogs(data.logs || []);
+            } else {
+                // 3. Fallback to Mock Data
+                setWorkers(MOCK_WORKERS);
+                setProjects(MOCK_PROJECTS);
+                setRecords(MOCK_RECORDS);
+                setTransactions(MOCK_TRANSACTIONS);
+                setLogs(MOCK_LOGS);
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    loadData();
+  }, []);
+
+  // Auto-Save Effect (Debounced)
+  useEffect(() => {
+    if (isLoading) return;
+
+    const saveData = async () => {
+        setIsSyncing(true);
+        setSyncError(false);
+        const payload = { workers, projects, records, transactions, logs, savedAt: new Date() };
+
+        // 1. Save to LocalStorage (Always safe)
+        localStorage.setItem('app_data_v1', JSON.stringify(payload));
+
+        try {
+            // 2. Try saving to API
+            const response = await fetch('/api/storage', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error("Sync failed");
+            setLastSaved(new Date());
+        } catch (err) {
+            console.warn("Cloud sync failed (API missing?), saved locally only.");
+            setSyncError(true);
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
+    const timer = setTimeout(saveData, 2000); // Auto-save after 2s of inactivity
+    return () => clearTimeout(timer);
+  }, [workers, projects, records, transactions, logs, isLoading]);
 
   const logAction = (action: string, details: string) => {
     if (!user) return;
@@ -886,14 +964,6 @@ export default function App() {
   const handleAddTx = (t: Transaction) => {
       setTransactions(prev => [...prev, t]);
       logAction('Tài chính', `${t.type==='advance'?'Chi tiền ứng':'Thanh toán lương'} cho ${workers.find(w=>w.id===t.workerId)?.name}`);
-  };
-
-  const handleImportData = (table: string, data: any[], mode: 'append' | 'replace') => {
-    const updateFn = (prev: any[]) => mode === 'replace' ? data : [...prev, ...data];
-    if (table === 'workers') setWorkers(updateFn);
-    else if (table === 'projects') setProjects(updateFn);
-    else if (table === 'records') setRecords(updateFn);
-    logAction('Dữ liệu', `Import ${data.length} bản ghi vào ${table}`);
   };
 
   const handleDeleteRecord = (id: string) => {
@@ -906,83 +976,16 @@ export default function App() {
       logAction('Chấm công', `Cập nhật bản ghi ${id} thành ${newShifts} công`);
   };
 
-  // --- Backup & Restore Functions ---
-  const handleFullBackup = () => {
-    const data = {
-        workers,
-        projects,
-        records,
-        transactions,
-        logs,
-        version: "1.0",
-        backupDate: new Date().toISOString()
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `backup_TT_FULL_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    logAction('Hệ thống', 'Thực hiện sao lưu toàn bộ dữ liệu (JSON)');
-  };
-
-  const handleRestoreBackup = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
-        alert('Vui lòng chọn file JSON hợp lệ (file backup từ hệ thống).');
-        return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = JSON.parse(e.target?.result as string);
-        
-        // Basic validation
-        if (!Array.isArray(data.workers) || !Array.isArray(data.projects)) {
-            throw new Error('Cấu trúc file không hợp lệ');
-        }
-
-        if(window.confirm(`Tìm thấy dữ liệu backup ngày ${formatDate(data.backupDate || '')}.\nBạn có chắc chắn muốn KHÔI PHỤC không? Dữ liệu hiện tại sẽ bị thay thế.`)) {
-             if (data.workers) setWorkers(data.workers);
-             if (data.projects) setProjects(data.projects);
-             if (data.records) setRecords(data.records);
-             if (data.transactions) setTransactions(data.transactions);
-             if (data.logs) setLogs(data.logs);
-             alert('Khôi phục dữ liệu thành công!');
-             logAction('Hệ thống', 'Khôi phục dữ liệu từ file backup JSON');
-        }
-      } catch (err) {
-        console.error(err);
-        alert('File backup bị lỗi hoặc không đúng định dạng!');
-      }
-    };
-    reader.readAsText(file);
-    // Reset input
-    event.target.value = '';
-  };
-
   const chartData = useMemo(() => {
       const dates = [...new Set(records.map(r => r.date))].sort();
-      // Get last 10 distinct dates
       const recentDates = dates.slice(-10);
-
       return recentDates.map(date => {
           const dayRecords = records.filter(r => r.date === date);
-          const dataPoint: any = { name: formatDate(date) }; // Use formatted date as label
-          
-          // Initialize all projects to 0 to align bars
-          projects.forEach(p => {
-              dataPoint[p.name] = 0;
-          });
-
-          // Aggregate shifts per project
+          const dataPoint: any = { name: formatDate(date) };
+          projects.forEach(p => { dataPoint[p.name] = 0; });
           dayRecords.forEach(r => {
               const project = projects.find(p => p.id === r.projectId);
-              if (project) {
-                  dataPoint[project.name] = (dataPoint[project.name] || 0) + r.shifts;
-              }
+              if (project) { dataPoint[project.name] = (dataPoint[project.name] || 0) + r.shifts; }
           });
           return dataPoint;
       });
@@ -990,17 +993,43 @@ export default function App() {
 
   const chartColors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
 
+  // --- Render ---
+
+  if (isLoading) {
+      return <div className="h-screen flex items-center justify-center bg-slate-50 text-blue-600"><Loader2 className="w-10 h-10 animate-spin" /></div>;
+  }
+
   if (!user) return <LoginScreen onLogin={u => setUser(u)} />;
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar currentView={view} setView={setView} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} currentUser={user} onLogout={() => setUser(null)} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between p-4 bg-white border-b border-slate-200 lg:hidden">
-          <button onClick={() => setMobileOpen(true)} className="p-2 text-slate-600"><Menu className="w-6 h-6" /></button>
-          <h1 className="text-sm font-black tracking-tighter uppercase text-slate-700">Công ty T&T</h1>
-          <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-lg">{user.name.charAt(0)}</div>
+        <header className="flex items-center justify-between p-4 bg-white border-b border-slate-200">
+          <div className="flex items-center lg:hidden">
+            <button onClick={() => setMobileOpen(true)} className="p-2 text-slate-600 mr-2"><Menu className="w-6 h-6" /></button>
+            <h1 className="text-sm font-black tracking-tighter uppercase text-slate-700">Công ty T&T</h1>
+          </div>
+          
+          {/* Sync Status Indicator */}
+          <div className="flex-1 flex justify-end lg:justify-end items-center gap-4">
+             {isSyncing ? (
+                 <span className="flex items-center text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full animate-pulse">
+                     <RefreshCw className="w-3 h-3 mr-2 animate-spin" /> Đang lưu...
+                 </span>
+             ) : syncError ? (
+                 <span className="flex items-center text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-full" title="Chưa kết nối API, dữ liệu đang lưu ở trình duyệt">
+                     <CloudOff className="w-3 h-3 mr-2" /> Lưu cục bộ
+                 </span>
+             ) : (
+                 <span className="flex items-center text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full">
+                     <Cloud className="w-3 h-3 mr-2" /> Đã đồng bộ {lastSaved ? lastSaved.toLocaleTimeString() : ''}
+                 </span>
+             )}
+             <div className="hidden lg:flex w-8 h-8 rounded-lg bg-blue-600 text-white items-center justify-center font-bold text-xs shadow-lg">{user.name.charAt(0)}</div>
+          </div>
         </header>
+
         <main className="flex-1 overflow-auto p-4 md:p-8">
           <div className="max-w-7xl mx-auto">
             {view === 'dashboard' && (
@@ -1054,35 +1083,46 @@ export default function App() {
                 <h2 className="text-2xl font-bold flex items-center gap-3 uppercase"><Database className="text-blue-600 w-7 h-7" /> Trung tâm Dữ liệu & Sao lưu</h2>
                 
                 <div className="p-6 bg-blue-50 border border-blue-200 rounded-xl mb-4">
-                    <h3 className="font-bold text-blue-800 flex items-center gap-2 mb-2"><Info className="w-5 h-5" /> LƯU Ý QUAN TRỌNG</h3>
-                    <p className="text-sm text-blue-700 leading-relaxed">Vì hệ thống chưa kết nối cơ sở dữ liệu (Database) nên mỗi lần cập nhật phiên bản mới, dữ liệu có thể bị đặt lại. 
-                    Vui lòng thực hiện <strong>SAO LƯU FULL (JSON)</strong> trước khi cập nhật và <strong>KHÔI PHỤC</strong> sau khi cập nhật xong.</p>
+                    <h3 className="font-bold text-blue-800 flex items-center gap-2 mb-2"><Info className="w-5 h-5" /> TRẠNG THÁI ĐỒNG BỘ</h3>
+                    {syncError ? (
+                        <p className="text-sm text-orange-700 leading-relaxed">Hệ thống đang chạy chế độ <strong>OFFLINE</strong> (lưu trên trình duyệt). Để lưu vĩnh viễn trên Vercel Postgres, bạn cần triển khai API backend.</p>
+                    ) : (
+                        <p className="text-sm text-emerald-700 leading-relaxed">Hệ thống đang kết nối với <strong>CLOUD API</strong>. Dữ liệu được an toàn.</p>
+                    )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                   {/* Full Backup */}
-                   <div className="p-8 border-2 border-slate-100 rounded-2xl bg-white hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer group flex flex-col items-center text-center" onClick={handleFullBackup}>
-                      <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mb-5 group-hover:scale-110 transition-transform shadow-sm"><Database className="w-8 h-8" /></div>
-                      <h4 className="font-black text-lg uppercase text-slate-800">1. Sao lưu Full (JSON)</h4>
-                      <p className="text-sm text-slate-500 mt-2 font-medium">Tải về toàn bộ dữ liệu (Công nhân, Công trình, Chấm công, Tiền ứng) để lưu trữ an toàn.</p>
-                      <button className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs uppercase">Tải xuống ngay</button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   {/* Manual Trigger */}
+                   <div className="p-8 border-2 border-slate-100 rounded-2xl bg-white hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer group flex flex-col items-center text-center">
+                      <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mb-5 group-hover:scale-110 transition-transform shadow-sm"><RefreshCw className={`w-8 h-8 ${isSyncing ? 'animate-spin' : ''}`} /></div>
+                      <h4 className="font-black text-lg uppercase text-slate-800">Đồng bộ ngay</h4>
+                      <p className="text-sm text-slate-500 mt-2 font-medium">Bắt buộc hệ thống lưu dữ liệu lên máy chủ ngay lập tức.</p>
+                      <button onClick={() => {
+                          // Trigger saving by flipping a dummy state if needed, but the effect handles updates.
+                          // Here we can just re-save.
+                          const saveData = async () => {
+                            setIsSyncing(true);
+                            try {
+                                await fetch('/api/storage', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ workers, projects, records, transactions, logs, savedAt: new Date() })
+                                });
+                                setLastSaved(new Date());
+                                alert('Đồng bộ thành công!');
+                            } catch(e) { alert('Lỗi đồng bộ: API chưa sẵn sàng.'); }
+                            setIsSyncing(false);
+                          };
+                          saveData();
+                      }} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs uppercase">Thực hiện</button>
                    </div>
 
-                   {/* Restore */}
-                   <label className="p-8 border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50 hover:bg-white hover:border-emerald-500 hover:shadow-lg transition-all cursor-pointer group flex flex-col items-center text-center relative">
-                      <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 mb-5 group-hover:scale-110 transition-transform shadow-sm"><RefreshCw className="w-8 h-8" /></div>
-                      <h4 className="font-black text-lg uppercase text-slate-800">2. Khôi phục Dữ liệu</h4>
-                      <p className="text-sm text-slate-500 mt-2 font-medium">Chọn file JSON đã sao lưu trước đó để khôi phục lại trạng thái cũ.</p>
-                      <span className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-xs uppercase">Chọn File Backup</span>
-                      <input type="file" accept=".json" className="hidden" onChange={handleRestoreBackup} />
-                   </label>
-
-                   {/* Excel Report (Legacy) */}
-                   <div className="p-8 border-2 border-slate-100 rounded-2xl bg-white hover:border-orange-400 hover:shadow-lg transition-all cursor-pointer group flex flex-col items-center text-center opacity-80 hover:opacity-100" onClick={() => exportToCSV(records, 'BaoCaoChamCong_TT')}>
+                   {/* Excel Report */}
+                   <div className="p-8 border-2 border-slate-100 rounded-2xl bg-white hover:border-orange-400 hover:shadow-lg transition-all cursor-pointer group flex flex-col items-center text-center" onClick={() => exportToCSV(records, 'BaoCaoChamCong_TT')}>
                       <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 mb-5 group-hover:scale-110 transition-transform shadow-sm"><FileDown className="w-8 h-8" /></div>
-                      <h4 className="font-black text-lg uppercase text-slate-800">3. Xuất Excel/CSV</h4>
-                      <p className="text-sm text-slate-500 mt-2 font-medium">Chỉ xuất dữ liệu chấm công để làm báo cáo. Không dùng để khôi phục hệ thống.</p>
-                      <button className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg font-bold text-xs uppercase">Xuất báo cáo</button>
+                      <h4 className="font-black text-lg uppercase text-slate-800">Xuất Excel/CSV</h4>
+                      <p className="text-sm text-slate-500 mt-2 font-medium">Xuất dữ liệu chấm công hiện tại ra file Excel để làm báo cáo.</p>
+                      <button className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg font-bold text-xs uppercase">Tải báo cáo</button>
                    </div>
                 </div>
               </div>
