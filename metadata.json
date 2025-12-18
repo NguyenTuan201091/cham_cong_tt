@@ -1,0 +1,5 @@
+{
+  "name": "Chấm công công nhật T&T",
+  "description": "Ứng dụng quản lý chấm công, nhân sự và tính lương cho các công trình xây dựng. Hỗ trợ tính công linh hoạt (16h = 2 công) và phân tích dữ liệu bằng AI.",
+  "requestFramePermissions": []
+}
