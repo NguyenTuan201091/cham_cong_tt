@@ -34,6 +34,7 @@ const generateMockRecords = (): TimeRecord[] => {
     
     // Add random records
     if (i % 6 !== 0) { // Skip some days (Sunday-ish)
+        // Record for Worker 1 (Project 1)
         records.push({
             id: `r-${i}-1`,
             workerId: 'w1',
@@ -42,7 +43,8 @@ const generateMockRecords = (): TimeRecord[] => {
             shifts: 1,
             rateUsed: getRate('w1')
         });
-        // Example of 2 shifts (formerly 16 hours)
+        
+        // Record for Worker 2 (Project 1)
         if (i === 2) {
              records.push({
                 id: `r-${i}-2`,
@@ -50,19 +52,29 @@ const generateMockRecords = (): TimeRecord[] => {
                 projectId: 'p1',
                 date: dateStr,
                 shifts: 2,
-                rateUsed: 325000, // Example of custom rate for special shift (normally 350k but 2 shifts might be different)
+                rateUsed: 325000, 
                 note: 'Tăng ca đổ bê tông'
             });
         } else {
              records.push({
                 id: `r-${i}-2`,
                 workerId: 'w2',
-                projectId: 'p2', // Different project
+                projectId: 'p1', // Fixed: w2 works in p1, not p2
                 date: dateStr,
                 shifts: 1,
                 rateUsed: getRate('w2')
             });
         }
+
+        // Record for Worker 3 (Project 2)
+        records.push({
+            id: `r-${i}-3`,
+            workerId: 'w3',
+            projectId: 'p2',
+            date: dateStr,
+            shifts: 1,
+            rateUsed: getRate('w3')
+        });
     }
   }
   return records;
