@@ -1,6 +1,8 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Worker, Project, TimeRecord, ViewMode, Transaction, User, ActivityLog } from './types';
-import { MOCK_WORKERS, MOCK_PROJECTS, MOCK_RECORDS, MOCK_TRANSACTIONS, MOCK_USERS, MOCK_LOGS } from './constants';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Worker, Project, TimeRecord, ViewMode, WeeklyPayrollItem, Transaction, User, ActivityLog } from './types';
+import { MOCK_USERS } from './constants'; // Only keeping Users for Auth simulation
+import { analyzePayroll } from './services/geminiService';
+import { api } from './services/api';
 import {
   LayoutDashboard,
   Users,
@@ -8,143 +10,199 @@ import {
   CalendarClock,
   Banknote,
   Menu,
+  X,
   Plus,
   Trash2,
+  BrainCircuit,
+  ChevronLeft,
+  ChevronRight,
+  Save,
+  Search,
+  Filter,
   Wallet,
+  ArrowRightLeft,
+  Calendar,
+  Briefcase,
+  IdCard,
+  Printer,
   FileDown,
   LogOut,
   History,
   Lock,
-  Edit,
-  Eye,
-  CreditCard,
-  Download,
-  Upload,
+  Settings,
   Database,
-  RefreshCw,
-  AlertCircle,
-  CheckCircle2,
-  ShieldCheck,
-  Search,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Info,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  Eraser,
-  Filter,
-  Save,
+  Upload,
+  Download,
+  AlertTriangle,
+  Edit,
+  Check,
   XCircle,
-  FileJson,
-  Cloud,
-  CloudOff,
+  Undo2,
+  Info,
   Loader2
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
 
 // --- Utility Functions ---
 
+// Safe ID Generator (crypto.randomUUID crashes in non-secure contexts like http://localhost)
+const generateId = () => {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+};
+
+// Calculate the End of the payroll week (Thursday) based on a selected date
 const getThursdayOfWeek = (date: Date) => {
   const d = new Date(date);
-  const day = d.getDay();
+  const day = d.getDay(); // 0 (Sun) ... 4 (Thu) ... 6 (Sat)
+  
   let diff = 4 - day;
-  if (diff < 0) diff += 7;
+  if (diff < 0) {
+      diff += 7; // If it's Fri (5) or Sat (6), go to next week's Thursday
+  }
+  
   d.setDate(d.getDate() + diff);
   return d;
 };
 
 const formatDate = (dateStr: string) => {
-    if (!dateStr) return '';
-    try {
-        const simpleDate = dateStr.split('T')[0];
-        const parts = simpleDate.split('-');
-        if (parts.length === 3) {
-            const [year, month, day] = parts;
-            return `${day}/${month}/${year}`;
-        }
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('vi-VN');
-    } catch (e) {
-        return dateStr;
-    }
+    return new Date(dateStr).toLocaleDateString('vi-VN');
+};
+
+const formatShortDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return `${d.getDate()}/${d.getMonth() + 1}`;
 };
 
 const formatDateTime = (isoString: string) => {
-    try {
-        const date = new Date(isoString);
-        return date.toLocaleString('vi-VN');
-    } catch (e) {
-        return isoString;
-    }
+    return new Date(isoString).toLocaleString('vi-VN');
 };
 
-const formatCurrency = (amount: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
-
-const exportToCSV = (data: any[], filename: string) => {
-  if (!data.length) return;
-  const headers = Object.keys(data[0]);
-  const csvContent = [
-    headers.join(','),
-    ...data.map(row => headers.map(header => {
-      const val = row[header];
-      return typeof val === 'string' ? `"${val.replace(/"/g, '""')}"` : val;
-    }).join(','))
-  ].join('\n');
-  const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.setAttribute('href', URL.createObjectURL(blob));
-  link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
-  link.click();
+const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 };
 
 // --- Components ---
 
-const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+const LoadingOverlay = () => (
+    <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center">
+        <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
+        <p className="text-slate-600 font-medium animate-pulse">Đang đồng bộ dữ liệu...</p>
+    </div>
+);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    const user = MOCK_USERS.find(u => u.username === username);
-    if (user) {
-      const isValid = (user.username === 'admin' && password === 'Tuan123456@') || 
-                      ((user.username === 'luc' || user.username === 'du') && password === '123456');
-      if (isValid) onLogin(user);
-      else setError('Mật khẩu không đúng.');
-    } else setError('Tên đăng nhập không tồn tại.');
-  };
-
+// New Confirmation Modal Component
+const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel }: { isOpen: boolean, title: string, message: string, onConfirm: () => void, onCancel: () => void }) => {
+  if (!isOpen) return null;
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm border border-slate-200 text-center">
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-blue-100 mb-5 text-blue-600">
-           <HardHat className="w-10 h-10" />
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full border border-slate-200 transform transition-all scale-100">
+        <div className="flex items-center gap-3 mb-3 text-red-600">
+           <AlertTriangle className="w-6 h-6" />
+           <h3 className="text-lg font-bold text-slate-800">{title}</h3>
         </div>
-        <h1 className="text-2xl font-bold text-slate-800 uppercase leading-tight">Công ty T&T</h1>
-        <p className="text-slate-500 mt-2 mb-8 text-base font-medium">Hệ thống chấm công công nhật</p>
-        <form onSubmit={handleLogin} className="space-y-4 text-left">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Người dùng</label>
-            <select value={username} onChange={(e) => setUsername(e.target.value)} className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 text-base font-medium">
-              <option value="">-- Chọn tài khoản --</option>
-              {MOCK_USERS.map(u => <option key={u.id} value={u.username}>{u.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Mật khẩu</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 text-base" />
-          </div>
-          {error && <div className="text-red-500 text-sm bg-red-50 p-3 rounded-lg font-medium border border-red-100">{error}</div>}
-          <button type="submit" className="w-full bg-blue-600 text-white py-3.5 rounded-lg font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 mt-2 text-base">ĐĂNG NHẬP</button>
-        </form>
+        <p className="text-slate-600 mb-6 leading-relaxed">{message}</p>
+        <div className="flex justify-end gap-3">
+          <button 
+            onClick={onCancel} 
+            className="px-4 py-2 text-slate-700 font-medium hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            Hủy bỏ
+          </button>
+          <button 
+            onClick={onConfirm} 
+            className="px-4 py-2 bg-red-600 text-white font-medium hover:bg-red-700 rounded-lg shadow-sm transition-colors flex items-center"
+          >
+            <Trash2 className="w-4 h-4 mr-2" /> Xóa ngay
+          </button>
+        </div>
       </div>
     </div>
   );
 };
 
-const Sidebar = ({ currentView, setView, mobileOpen, setMobileOpen, currentUser, onLogout }: any) => {
+const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+
+    const handleLogin = (e: React.FormEvent) => {
+        e.preventDefault();
+        const user = MOCK_USERS.find(u => u.username === username);
+        
+        if (user) {
+            let isValid = false;
+            if (user.username === 'admin' && password === 'Tuan123456@') isValid = true;
+            else if ((user.username === 'luc' || user.username === 'du') && password === '123456') isValid = true;
+            
+            if (isValid) {
+                onLogin(user);
+            } else {
+                setError('Mật khẩu không đúng.');
+            }
+        } else {
+            setError('Tên đăng nhập không tồn tại.');
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+            <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border border-slate-200">
+                <div className="text-center mb-8">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
+                        <Lock className="w-8 h-8 text-blue-600" />
+                    </div>
+                    <h1 className="text-2xl font-bold text-slate-800">Đăng Nhập Hệ Thống</h1>
+                    <p className="text-slate-500 mt-2">Chấm công công nhật T&T</p>
+                </div>
+                
+                <form onSubmit={handleLogin} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Tên đăng nhập</label>
+                        <select 
+                            value={username} 
+                            onChange={(e) => setUsername(e.target.value)}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        >
+                            <option value="">-- Chọn người dùng --</option>
+                            {MOCK_USERS.map(u => (
+                                <option key={u.id} value={u.username}>{u.name} ({u.username})</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu</label>
+                        <input 
+                            type="password" 
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="Nhập mật khẩu"
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                    </div>
+                    {error && <div className="text-red-500 text-sm bg-red-50 p-2 rounded">{error}</div>}
+                    <button 
+                        type="submit" 
+                        className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                    >
+                        Đăng Nhập
+                    </button>
+                </form>
+                <div className="mt-6 text-center text-xs text-slate-400">
+                    <p>Hệ thống nội bộ T&T</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const Sidebar = ({ currentView, setView, mobileOpen, setMobileOpen, currentUser, onLogout }: {
+  currentView: ViewMode,
+  setView: (v: ViewMode) => void,
+  mobileOpen: boolean,
+  setMobileOpen: (v: boolean) => void,
+  currentUser: User,
+  onLogout: () => void
+}) => {
   const menuItems = [
     { id: 'dashboard', label: 'Tổng Quan', icon: LayoutDashboard },
     { id: 'timesheet', label: 'Chấm Công', icon: CalendarClock },
@@ -155,612 +213,1326 @@ const Sidebar = ({ currentView, setView, mobileOpen, setMobileOpen, currentUser,
   ];
 
   if (currentUser.role === 'admin') {
-    menuItems.push({ id: 'backup', label: 'Sao Lưu', icon: Database });
-    menuItems.push({ id: 'logs', label: 'Nhật Ký', icon: History });
+      menuItems.push({ id: 'logs', label: 'Nhật Ký', icon: History });
+      menuItems.push({ id: 'backup', label: 'Sao Lưu & Phục Hồi', icon: Database });
   }
 
   return (
     <>
-      {mobileOpen && <div className="fixed inset-0 z-20 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)} />}
-      <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform transition-transform duration-200 lg:translate-x-0 lg:static lg:inset-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col print:hidden`}>
-        <div className="flex flex-col items-center justify-center py-8 border-b border-slate-800 shrink-0">
-            <span className="font-bold text-2xl tracking-tight text-blue-400 uppercase">Công ty T&T</span>
-            <span className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Hệ thống quản lý</span>
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black/50 lg:hidden print:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} print:hidden flex flex-col`}>
+        <div className="flex items-center justify-center h-16 border-b border-slate-800 shrink-0">
+          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">Chấm công T&T</h1>
         </div>
-        <div className="p-4 border-b border-slate-800 bg-slate-800/20">
-          <div className="flex items-center">
-            <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center font-bold shadow-lg text-sm">{currentUser.name.charAt(0)}</div>
-            <div className="ml-3 overflow-hidden">
-              <p className="text-sm font-bold truncate">{currentUser.name}</p>
-              <p className="text-[10px] text-slate-500 uppercase font-bold flex items-center mt-0.5">
-                {currentUser.role === 'admin' && <ShieldCheck className="w-3 h-3 mr-1 text-blue-400" />}
-                {currentUser.role}
-              </p>
+        
+        <div className="p-4 border-b border-slate-800 bg-slate-800/50">
+            <div className="flex items-center">
+                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg">
+                    {currentUser.username.charAt(0).toUpperCase()}
+                </div>
+                <div className="ml-3 overflow-hidden">
+                    <p className="text-sm font-medium text-white truncate">{currentUser.name}</p>
+                    <p className="text-xs text-slate-400 capitalize">{currentUser.role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}</p>
+                </div>
             </div>
-          </div>
         </div>
+
         <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
-          {menuItems.map((item) => (
-            <button key={item.id} onClick={() => { setView(item.id); setMobileOpen(false); }} className={`flex items-center w-full px-4 py-3 rounded-lg transition-all ${currentView === item.id ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
-              <item.icon className="w-5 h-5 mr-3" />
-              <span className="font-medium text-sm">{item.label}</span>
-            </button>
-          ))}
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setView(item.id as ViewMode);
+                  setMobileOpen(false);
+                }}
+                className={`flex items-center w-full px-4 py-3 rounded-lg transition-colors ${
+                  currentView === item.id
+                    ? 'bg-blue-600 text-white'
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <Icon className="w-5 h-5 mr-3" />
+                <span className="font-medium">{item.label}</span>
+              </button>
+            );
+          })}
         </nav>
-        <div className="p-4 border-t border-slate-800">
-          <button type="button" onClick={onLogout} className="flex items-center w-full px-4 py-3 rounded-lg text-slate-500 hover:bg-red-900/20 hover:text-red-400 transition-colors font-bold text-sm">
-            <LogOut className="w-5 h-5 mr-3" /> Đăng Xuất
-          </button>
+
+        <div className="p-4 border-t border-slate-800 shrink-0">
+            <button 
+                onClick={onLogout}
+                className="flex items-center w-full px-4 py-3 rounded-lg text-slate-400 hover:bg-red-900/20 hover:text-red-400 transition-colors"
+            >
+                <LogOut className="w-5 h-5 mr-3" />
+                <span className="font-medium">Đăng Xuất</span>
+            </button>
         </div>
       </div>
     </>
   );
 };
 
-// --- Functional Components ---
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-lg text-sm z-50">
+        <p className="font-bold text-slate-700 mb-2 border-b border-slate-100 pb-1">{label}</p>
+        <p className="text-blue-600 font-bold mb-2">
+          Tổng: {data.shifts} công
+        </p>
+        {data.details && Object.keys(data.details).length > 0 && (
+          <div className="space-y-1">
+             <p className="text-xs font-semibold text-slate-400 uppercase">Chi tiết:</p>
+             {Object.entries(data.details).map(([pName, count]: [string, any]) => (
+               <div key={pName} className="flex justify-between gap-6 text-xs text-slate-600">
+                  <span className="truncate max-w-[150px]">{pName}:</span>
+                  <span className="font-medium">{count}</span>
+               </div>
+             ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+  return null;
+};
 
-const Timesheet = ({ workers, projects, records, onAddRecord, onDeleteRecord, onUpdateRecord }: any) => {
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [projectId, setProjectId] = useState(projects[0]?.id || '');
-  const [filterByAssigned, setFilterByAssigned] = useState(true);
-  const [inputs, setInputs] = useState<Record<string, any>>({});
+const Dashboard = ({ workers, projects, records }: { workers: Worker[], projects: Project[], records: TimeRecord[] }) => {
+  const activeProjects = projects.filter(p => p.status === 'active').length;
+  const totalShiftsRecorded = records.length;
   
-  // Edit State
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editShifts, setEditShifts] = useState<string>('');
+  const chartData = useMemo(() => {
+     const data: any[] = [];
+     const today = new Date();
+     for(let i=6; i>=0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        const dayRecords = records.filter(r => r.date === dateStr);
+        const totalShifts = dayRecords.reduce((acc, curr) => acc + curr.shifts, 0);
+        
+        // Group by project
+        const details: Record<string, number> = {};
+        dayRecords.forEach(r => {
+             const project = projects.find(p => p.id === r.projectId);
+             const pName = project ? project.name : 'Khác';
+             details[pName] = (details[pName] || 0) + r.shifts;
+        });
 
-  useEffect(() => {
-    // When project changes, find the project rate
-    const currentProject = projects.find((p: any) => p.id === projectId);
-    const standardRate = currentProject?.standardRate || 350000;
-
-    const initial: any = {};
-    workers.forEach((w: any) => {
-      // Use project rate instead of worker rate
-      initial[w.id] = { shifts: 1, customRate: standardRate, selected: false };
-    });
-    setInputs(initial);
-  }, [workers, projectId, projects]);
-
-  const filteredWorkers = useMemo(() => {
-    if (!filterByAssigned) return workers;
-    return workers.filter((w: any) => w.currentProjectId === projectId);
-  }, [workers, projectId, filterByAssigned]);
-
-  const existingRecords = useMemo(() => {
-      // Correctly filter records matching BOTH date AND project
-      return records.filter((r: any) => r.date === date && r.projectId === projectId);
-  }, [records, date, projectId]);
-
-  const handleSave = () => {
-    const selectedKeys = Object.keys(inputs).filter(id => inputs[id].selected);
-    const newRecords = selectedKeys.map(id => ({
-        // Use a more unique ID to prevent collision during batch add, allowing Delete to work properly
-        id: `${Date.now()}-${id}-${Math.random().toString(36).substr(2, 5)}`, 
-        workerId: id,
-        projectId,
-        date,
-        shifts: Number(inputs[id].shifts),
-        rateUsed: inputs[id].customRate
-      }));
-
-    if (newRecords.length) {
-      onAddRecord(newRecords);
-      setInputs(prev => {
-        const reset = { ...prev };
-        Object.keys(reset).forEach(k => reset[k].selected = false);
-        return reset;
-      });
-    } else {
-      alert("Bạn chưa chọn công nhân nào!");
-    }
-  };
-
-  const startEdit = (record: any) => {
-      setEditingId(record.id);
-      setEditShifts(record.shifts.toString());
-  };
-
-  const saveEdit = (id: string) => {
-      onUpdateRecord(id, Number(editShifts));
-      setEditingId(null);
-  };
+        data.push({
+            name: `${d.getDate()}/${d.getMonth()+1}`,
+            shifts: totalShifts,
+            details: details
+        });
+     }
+     return data;
+  }, [records, projects]);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h2 className="text-2xl font-bold text-slate-800 uppercase">Chấm công Hằng Ngày</h2>
-        <div className="flex flex-wrap gap-3">
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} className="px-3 py-2 border rounded-lg shadow-sm font-medium text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-          <select value={projectId} onChange={e => setProjectId(e.target.value)} className="px-3 py-2 border rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-bold text-sm text-blue-700 min-w-[200px]">
-            {projects.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <button 
-            type="button"
-            onClick={() => setFilterByAssigned(!filterByAssigned)}
-            className={`px-4 py-2 rounded-lg font-bold text-xs uppercase transition-all shadow-sm ${filterByAssigned ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}
-          >
-            {filterByAssigned ? 'Đang lọc thợ tại CT' : 'Hiện tất cả thợ'}
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div className="p-4 bg-slate-50 border-b flex justify-between items-center">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Danh sách ({filteredWorkers.length})</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[700px]">
-            <thead>
-              <tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-widest">
-                <th className="p-4 w-12 text-center"></th>
-                <th className="p-4">Công nhân</th>
-                <th className="p-4 text-center">Công</th>
-                <th className="p-4 text-right">Giá công (CT)</th>
-                <th className="p-4 text-right">Tạm tính</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredWorkers.map((w: any) => (
-                <tr key={w.id} className={`${inputs[w.id]?.selected ? 'bg-blue-50/50' : ''} hover:bg-slate-50 transition-colors`}>
-                  <td className="p-4 text-center">
-                    <input 
-                      type="checkbox" 
-                      checked={inputs[w.id]?.selected || false} 
-                      onChange={e => setInputs({...inputs, [w.id]: {...inputs[w.id], selected: e.target.checked}})}
-                      className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                    />
-                  </td>
-                  <td className="p-4">
-                    <p className="font-bold text-base text-slate-800">{w.name}</p>
-                    <p className="text-xs text-slate-500 font-medium uppercase mt-0.5">{w.role}</p>
-                  </td>
-                  <td className="p-4 text-center">
-                    <div className="inline-flex items-center bg-white border border-slate-200 rounded-lg p-1">
-                      <input 
-                        type="number" step="0.5" min="0" 
-                        value={inputs[w.id]?.shifts || 1} 
-                        onChange={e => {
-                            const val = e.target.value;
-                            const numVal = parseFloat(val);
-                            // Auto-adjust rate if shifts = 2 and doubleRate exists
-                            const project = projects.find((p: any) => p.id === projectId);
-                            let newRate = inputs[w.id]?.customRate;
-                            
-                            if (project) {
-                                if (numVal === 2 && project.doubleRate) {
-                                    newRate = project.doubleRate / 2;
-                                } else if (inputs[w.id]?.shifts === '2' && numVal !== 2) {
-                                    newRate = project.standardRate;
-                                }
-                            }
-
-                            setInputs({...inputs, [w.id]: {...inputs[w.id], shifts: val, customRate: newRate}})
-                        }}
-                        className="w-16 p-1 text-center font-bold text-base text-blue-700 outline-none"
-                      />
-                    </div>
-                  </td>
-                  <td className="p-4 text-right text-sm font-medium text-slate-500">
-                     <input 
-                        type="number"
-                        value={inputs[w.id]?.customRate || 0} 
-                        onChange={e => setInputs({...inputs, [w.id]: {...inputs[w.id], customRate: Number(e.target.value)}})}
-                        className="w-24 p-1 text-right bg-transparent outline-none border-b border-dashed border-slate-300 focus:border-blue-500 font-bold"
-                      />
-                  </td>
-                  <td className="p-4 text-right font-bold text-base text-slate-800">
-                    {formatCurrency((inputs[w.id]?.shifts || 0) * (inputs[w.id]?.customRate || 0))}
-                  </td>
-                </tr>
-              ))}
-              {filteredWorkers.length === 0 && (
-                <tr><td colSpan={5} className="p-12 text-center text-slate-400 text-sm italic">Không tìm thấy công nhân nào thuộc công trình này.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        <div className="p-4 border-t bg-slate-50 flex justify-end items-center">
-          <button onClick={handleSave} className="bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5" /> CHỐT CÔNG
-          </button>
-        </div>
-      </div>
-
-      {/* History / Edit Section */}
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden animate-in slide-in-from-bottom-2 fade-in">
-          <div className="p-4 bg-orange-50 border-b flex justify-between items-center border-orange-100">
-             <h3 className="text-sm font-bold text-orange-800 uppercase flex items-center gap-2">
-                <History className="w-4 h-4" /> Đã chấm hôm nay tại {projects.find((p:any) => p.id === projectId)?.name}
-             </h3>
-             <span className="text-xs font-medium text-orange-600 bg-white px-2 py-1 rounded-lg border border-orange-200">
-                {formatDate(date)}
-             </span>
+      <h2 className="text-2xl font-bold text-slate-800">Tổng Quan</h2>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">Tổng Công Nhật</p>
+              <p className="text-3xl font-bold text-slate-800 mt-1">{workers.length}</p>
+            </div>
+            <div className="p-3 bg-blue-50 rounded-lg">
+              <Users className="w-6 h-6 text-blue-600" />
+            </div>
           </div>
-          <div className="overflow-x-auto">
-             <table className="w-full text-left">
-                <thead className="bg-white text-xs font-bold text-slate-400 uppercase tracking-widest border-b">
-                   <tr>
-                      <th className="p-4">Công nhân</th>
-                      <th className="p-4 text-center">Số công</th>
-                      <th className="p-4 text-right">Đơn giá</th>
-                      <th className="p-4 text-right">Hành động</th>
-                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                   {existingRecords.length > 0 ? existingRecords.map((r: any) => {
-                       const worker = workers.find((w:any) => w.id === r.workerId);
-                       const isEditing = editingId === r.id;
-                       
-                       return (
-                           <tr key={r.id} className="hover:bg-slate-50">
-                               <td className="p-4 font-bold text-slate-700 text-sm">{worker?.name || 'Không xác định'}</td>
-                               <td className="p-4 text-center">
-                                   {isEditing ? (
-                                       <input 
-                                          type="number" step="0.5" 
-                                          value={editShifts}
-                                          onChange={e => setEditShifts(e.target.value)}
-                                          className="w-16 p-1 border rounded text-center font-bold text-blue-600 outline-none focus:ring-2 focus:ring-blue-500"
-                                          autoFocus
-                                       />
-                                   ) : (
-                                       <span className="font-bold text-blue-600 text-sm">{r.shifts}</span>
-                                   )}
-                               </td>
-                               <td className="p-4 text-right text-sm text-slate-500">{formatCurrency(r.rateUsed)}</td>
-                               <td className="p-4 text-right">
-                                   <div className="flex justify-end gap-2">
-                                       {isEditing ? (
-                                           <>
-                                               <button onClick={() => saveEdit(r.id)} className="p-2 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"><Save className="w-4 h-4" /></button>
-                                               <button onClick={() => setEditingId(null)} className="p-2 text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"><XCircle className="w-4 h-4" /></button>
-                                           </>
-                                       ) : (
-                                           <>
-                                               <button 
-                                                  type="button"
-                                                  onClick={() => startEdit(r)}
-                                                  className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
-                                                  title="Sửa công"
-                                               >
-                                                  <Edit className="w-4 h-4" />
-                                               </button>
-                                               <button 
-                                                  type="button"
-                                                  onClick={(e) => { 
-                                                      e.stopPropagation();
-                                                      onDeleteRecord(r.id);
-                                                  }}
-                                                  className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                                  title="Xóa"
-                                               >
-                                                  <Trash2 className="w-4 h-4" />
-                                               </button>
-                                           </>
-                                       )}
-                                   </div>
-                               </td>
-                           </tr>
-                       )
-                   }) : (
-                       <tr>
-                           <td colSpan={4} className="p-8 text-center text-slate-400 text-sm italic">Chưa có dữ liệu chấm công cho ngày này tại công trình này.</td>
-                       </tr>
-                   )}
-                </tbody>
-             </table>
+        </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">Công Trình Đang Chạy</p>
+              <p className="text-3xl font-bold text-slate-800 mt-1">{activeProjects}</p>
+            </div>
+            <div className="p-3 bg-orange-50 rounded-lg">
+              <HardHat className="w-6 h-6 text-orange-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">Lượt Chấm Công</p>
+              <p className="text-3xl font-bold text-slate-800 mt-1">{totalShiftsRecorded}</p>
+            </div>
+            <div className="p-3 bg-emerald-50 rounded-lg">
+              <CalendarClock className="w-6 h-6 text-emerald-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <h3 className="text-lg font-semibold mb-4 text-slate-800">Biểu Đồ Chấm Công (7 Ngày Qua)</h3>
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip content={<CustomTooltip />} cursor={{fill: 'transparent'}} />
+                <Bar dataKey="shifts" name="Số công" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
       </div>
     </div>
   );
 };
 
-// ... [Payroll, ManageWorkers, ManageProjects, DebtManagement components remain unchanged] ...
-// Re-implementing them here to ensure full file integrity if user copy-pastes
+const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, onDeleteRecord }: { 
+    workers: Worker[], 
+    projects: Project[], 
+    records: TimeRecord[],
+    onAddRecord: (records: TimeRecord[]) => void,
+    onUpdateRecord: (id: string, shifts: number, rate: number) => void,
+    onDeleteRecord: (id: string) => void
+}) => {
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [projectId, setProjectId] = useState(projects.length > 0 ? projects[0].id : '');
+    const [filterByProject, setFilterByProject] = useState(true);
+    
+    // Deletion Modal State
+    const [deleteId, setDeleteId] = useState<string | null>(null);
 
-const Payroll = ({ workers, records, projects }: any) => {
-  const [weekEnd, setWeekEnd] = useState(() => getThursdayOfWeek(new Date()).toISOString().split('T')[0]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(''); 
-  
-  const weekStart = useMemo(() => {
-    const d = new Date(weekEnd);
-    d.setDate(d.getDate() - 6);
-    return d.toISOString().split('T')[0];
-  }, [weekEnd]);
+    const [inputs, setInputs] = useState<Record<string, { shifts: number, customRate: number, selected: boolean, note: string }>>({});
 
-  const payrollData = useMemo(() => {
-    let filteredRecords = records.filter((r: any) => r.date >= weekStart && r.date <= weekEnd);
-    if (selectedProjectId) {
-        filteredRecords = filteredRecords.filter((r: any) => r.projectId === selectedProjectId);
-    }
+    const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+    const [editShiftValue, setEditShiftValue] = useState<number>(0);
+    const [editRateValue, setEditRateValue] = useState<number>(0); 
 
-    return workers.map((w: any) => {
-      const wRecords = filteredRecords.filter((r: any) => r.workerId === w.id);
-      const totalShifts = wRecords.reduce((sum: number, r: any) => sum + r.shifts, 0);
-      const totalAmount = wRecords.reduce((sum: number, r: any) => sum + (r.shifts * r.rateUsed), 0);
-      const projectNames = Array.from(new Set(wRecords.map(r => projects.find((p:any)=>p.id===r.projectId)?.name))).filter(Boolean);
-      return { worker: w, totalShifts, totalAmount, projectNames, details: wRecords };
-    }).filter((item: any) => item.totalShifts > 0);
-  }, [workers, records, projects, weekStart, weekEnd, selectedProjectId]);
+    const filteredWorkers = useMemo(() => {
+        if (!filterByProject || !projectId) return workers;
+        return workers.filter(w => w.currentProjectId === projectId);
+    }, [workers, projectId, filterByProject]);
 
-  const selectedProjectName = projects.find((p:any) => p.id === selectedProjectId)?.name || "TẤT CẢ CÔNG TRÌNH";
+    // Use strictly formatted strings for comparison to avoid any type coercion issues
+    const existingRecords = useMemo(() => {
+        return records.filter(r => r.date === date && String(r.projectId) === String(projectId));
+    }, [records, date, projectId]);
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4 print:hidden">
-        <h2 className="text-2xl font-bold text-slate-800 uppercase">Thanh Toán Tuần</h2>
-        <div className="flex flex-wrap items-center gap-3">
-           <div className="flex items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-slate-200">
-               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-2">Lọc CT</span>
-               <select 
-                   value={selectedProjectId} 
-                   onChange={(e) => setSelectedProjectId(e.target.value)}
-                   className="p-1 border-none outline-none font-bold text-sm text-slate-700 bg-transparent min-w-[150px]"
-               >
-                   <option value="">Tất cả công trình</option>
-                   {projects.map((p:any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-               </select>
-           </div>
-           <div className="flex items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-slate-200">
-               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-2">Ngày chốt</span>
-               <input 
-                 type="date" 
-                 value={weekEnd} 
-                 onChange={e => setWeekEnd(e.target.value)} 
-                 className="p-1 border-none rounded-lg font-bold text-sm text-blue-600 outline-none"
-               />
+    const currentProjectName = projects.find(p => p.id === projectId)?.name || 'Không xác định';
+
+    const calculateRecommendedRate = (currentProjectId: string, shifts: number, defaultWorkerRate: number): number => {
+        const project = projects.find(p => p.id === currentProjectId);
+        if (!project) return defaultWorkerRate;
+        if (shifts === 2 && project.doubleRate) return project.doubleRate / 2;
+        if (project.standardRate) return project.standardRate;
+        return defaultWorkerRate;
+    };
+
+    useEffect(() => {
+        const initialInputs: any = {};
+        workers.forEach(w => {
+            const targetProjectId = projectId;
+            const rate = calculateRecommendedRate(targetProjectId, 1, w.dailyRate);
+
+            initialInputs[w.id] = { 
+                shifts: 1, 
+                customRate: rate,
+                selected: false, 
+                note: '' 
+            };
+        });
+        setInputs(initialInputs);
+    }, [workers, projectId, projects]);
+
+    const handleInputChange = (workerId: string, field: string, value: any) => {
+        setInputs(prev => {
+            const current = prev[workerId];
+            let newState = { ...current, [field]: value };
+            if (field === 'shifts') {
+                const worker = workers.find(w => w.id === workerId);
+                if (worker) {
+                    const newRate = calculateRecommendedRate(projectId, Number(value), worker.dailyRate);
+                    newState.customRate = newRate;
+                }
+            }
+            return { ...prev, [workerId]: newState };
+        });
+    };
+
+    const handleSave = () => {
+        const newRecords: TimeRecord[] = [];
+        filteredWorkers.forEach(worker => {
+            const data = inputs[worker.id];
+            if (data && data.selected) {
+                 newRecords.push({
+                    id: generateId(),
+                    workerId: worker.id,
+                    projectId,
+                    date,
+                    shifts: data.shifts,
+                    rateUsed: data.customRate, 
+                    note: data.note
+                });
+            }
+        });
+        
+        if (newRecords.length === 0) {
+            alert("Vui lòng chọn ít nhất một công nhật để chấm công.");
+            return;
+        }
+
+        onAddRecord(newRecords);
+        setInputs(prev => {
+            const next = { ...prev };
+            filteredWorkers.forEach(w => {
+                if(next[w.id]) next[w.id].selected = false;
+            });
+            return next;
+        });
+    };
+
+    const startEditing = (record: TimeRecord) => {
+        setEditingRecordId(record.id);
+        setEditShiftValue(record.shifts);
+        setEditRateValue(record.rateUsed); 
+    };
+
+    const saveEdit = () => {
+        if (editingRecordId) {
+            onUpdateRecord(editingRecordId, editShiftValue, editRateValue);
+            setEditingRecordId(null);
+        }
+    };
+
+    const confirmDelete = () => {
+        if (deleteId) {
+            onDeleteRecord(deleteId);
+            setDeleteId(null);
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <ConfirmationModal 
+                isOpen={!!deleteId} 
+                title="Xóa Chấm Công"
+                message="Bạn có chắc chắn muốn xóa bản ghi chấm công này không? Hành động này không thể hoàn tác."
+                onConfirm={confirmDelete}
+                onCancel={() => setDeleteId(null)}
+            />
+
+             <div className="flex flex-col gap-4">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <h2 className="text-2xl font-bold text-slate-800">Chấm Công Hàng Ngày</h2>
+                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                        <input 
+                            type="date" 
+                            value={date} 
+                            onChange={(e) => setDate(e.target.value)}
+                            className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                        <select 
+                            value={projectId} 
+                            onChange={(e) => setProjectId(e.target.value)}
+                            className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        >
+                            {projects.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+                
+                <div className="flex items-center">
+                    <label className="flex items-center cursor-pointer select-none">
+                        <input 
+                            type="checkbox" 
+                            className="w-4 h-4 text-blue-600 rounded mr-2" 
+                            checked={filterByProject}
+                            onChange={(e) => setFilterByProject(e.target.checked)}
+                        />
+                        <div className="text-slate-700 font-medium">Chỉ hiện công nhật thuộc công trình này</div>
+                    </label>
+                </div>
             </div>
-            <button onClick={() => window.print()} className="bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-slate-700 transition-all shadow-sm">
-              <FileDown className="w-5 h-5" /> IN
-            </button>
-        </div>
-      </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="hidden print:block text-center p-8 border-b">
-          <h1 className="text-3xl font-bold text-slate-900 uppercase">CÔNG TY T&T</h1>
-          <p className="text-slate-500 font-bold mt-2 uppercase tracking-[0.2em] text-sm">BẢNG THANH TOÁN TIỀN LƯƠNG CÔNG NHẬT</p>
-          <div className="flex justify-center gap-8 mt-4">
-              <div className="text-left">
-                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Kỳ lương</p>
-                  <p className="font-bold text-base">{formatDate(weekStart)} - {formatDate(weekEnd)}</p>
-              </div>
-              <div className="text-left border-l pl-8">
-                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Phạm vi công trình</p>
-                  <p className="font-bold text-base uppercase">{selectedProjectName}</p>
-              </div>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-            <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Nhân sự</th>
-                <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Chi tiết chấm công (Ngày: Công)</th>
-                <th className="p-4 text-center text-xs font-bold text-slate-400 uppercase tracking-widest w-32">Tổng Công</th>
-                <th className="p-4 text-right text-xs font-bold text-slate-400 uppercase tracking-widest w-40">Thành Tiền</th>
-                </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-                {payrollData.map((item: any) => (
-                <tr key={item.worker.id} className="hover:bg-slate-50/50">
-                    <td className="p-4">
-                        <p className="font-bold text-slate-800 text-base">{item.worker.name}</p>
-                        <p className="text-xs text-slate-500 font-bold uppercase mt-1">{item.projectNames.join(' • ')}</p>
-                    </td>
-                    <td className="p-4">
-                        <div className="flex flex-wrap gap-2">
-                            {item.details.sort((a:any,b:any) => a.date.localeCompare(b.date)).map((d: any) => {
-                                const dateObj = new Date(d.date);
+            {/* Section: Add New Records */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-4 bg-slate-50 border-b border-slate-200 font-bold text-slate-700">
+                    Bảng Chấm Công (Thêm Mới)
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                            <tr>
+                                <th className="p-4 w-12"><input type="checkbox" onChange={(e) => { const checked = e.target.checked; setInputs(prev => { const next = { ...prev }; filteredWorkers.forEach(w => { if(next[w.id]) next[w.id].selected = checked; }); return next; }); }} /></th>
+                                <th className="p-4 font-semibold text-slate-700">Công Nhật</th>
+                                <th className="p-4 font-semibold text-slate-700">Công (Shift)</th>
+                                <th className="p-4 font-semibold text-slate-700">Đơn giá</th>
+                                <th className="p-4 font-semibold text-slate-700">Tổng Tiền</th>
+                                <th className="p-4 font-semibold text-slate-700">Ghi Chú</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {filteredWorkers.length > 0 ? filteredWorkers.map(worker => {
+                                const input = inputs[worker.id] || { shifts: 1, customRate: worker.dailyRate, selected: false, note: '' };
                                 return (
-                                    <span key={d.id} className="inline-flex items-center px-2 py-1 bg-slate-100 border border-slate-200 rounded text-xs text-slate-600">
-                                        <span className="font-medium mr-1">{dateObj.getDate()}/{dateObj.getMonth()+1}:</span>
-                                        <span className="font-bold text-blue-600">{d.shifts}c</span>
-                                    </span>
-                                )
-                            })}
-                        </div>
-                    </td>
-                    <td className="p-4 text-center">
-                        <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full font-bold text-sm">{item.totalShifts}</span>
-                    </td>
-                    <td className="p-4 text-right font-bold text-emerald-600 text-base">{formatCurrency(item.totalAmount)}</td>
-                </tr>
-                ))}
-            </tbody>
-            <tfoot className="bg-slate-900 text-white">
-                <tr>
-                <td className="p-5 text-right font-bold uppercase text-xs tracking-widest" colSpan={2}>TỔNG CỘNG CHI TRẢ:</td>
-                <td colSpan={2} className="p-5 text-right text-2xl font-bold text-emerald-400">
-                    {formatCurrency(payrollData.reduce((sum, item) => sum + item.totalAmount, 0))}
-                </td>
-                </tr>
-            </tfoot>
-            </table>
+                                    <tr key={worker.id} className={input.selected ? 'bg-blue-50/50' : ''}>
+                                        <td className="p-4"><input type="checkbox" checked={input.selected} onChange={(e) => handleInputChange(worker.id, 'selected', e.target.checked)} className="w-4 h-4" /></td>
+                                        <td className="p-4">
+                                            <div className="font-medium">{worker.name}</div>
+                                            <div className="text-xs text-slate-500">{worker.role}</div>
+                                        </td>
+                                        <td className="p-4"><input type="number" step="0.5" min="0" value={input.shifts} onChange={(e) => handleInputChange(worker.id, 'shifts', Number(e.target.value))} className="w-20 px-2 py-1 border rounded" /></td>
+                                        <td className="p-4"><input type="number" value={input.customRate} readOnly className="w-32 px-2 py-1 border rounded bg-slate-100 text-right" /></td>
+                                        <td className="p-4 font-medium text-emerald-600">{formatCurrency(input.shifts * input.customRate)}</td>
+                                        <td className="p-4"><input type="text" value={input.note} onChange={(e) => handleInputChange(worker.id, 'note', e.target.value)} className="w-full px-2 py-1 border rounded" /></td>
+                                    </tr>
+                                );
+                            }) : (
+                                <tr><td colSpan={6} className="p-8 text-center text-slate-500">Không có công nhật nào.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
+                    <button onClick={handleSave} className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm">
+                        <Save className="w-5 h-5 mr-2" /> Lưu Chấm Công
+                    </button>
+                </div>
+            </div>
+
+            {/* Section: Edit/Delete Existing Records */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in slide-in-from-bottom-2">
+                <div className="p-4 bg-orange-50 border-b border-orange-200 flex justify-between items-center">
+                    <div className="font-bold text-orange-800 flex items-center">
+                        <History className="w-4 h-4 mr-2" /> 
+                        <span>Danh sách đã chấm hôm nay ({formatShortDate(date)}) - <span className="text-blue-600">{currentProjectName}</span></span>
+                    </div>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-white border-b border-slate-200">
+                            <tr>
+                                <th className="p-4 font-semibold text-slate-600">Công Nhật</th>
+                                <th className="p-4 font-semibold text-slate-600">Số Công</th>
+                                <th className="p-4 font-semibold text-slate-600 text-right">Đơn Giá (VNĐ)</th>
+                                <th className="p-4 font-semibold text-slate-600 text-right">Thao Tác</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {existingRecords.length > 0 ? existingRecords.map(record => {
+                                const worker = workers.find(w => w.id === record.workerId);
+                                const isEditing = editingRecordId === record.id;
+                                return (
+                                    <tr key={record.id} className="hover:bg-slate-50">
+                                        <td className="p-4 font-medium text-slate-800">{worker?.name}</td>
+                                        <td className="p-4">
+                                            {isEditing ? (
+                                                <input 
+                                                    type="number" step="0.5" className="w-20 px-2 py-1 border border-blue-400 rounded focus:ring-2 focus:ring-blue-200 outline-none"
+                                                    value={editShiftValue} onChange={e => setEditShiftValue(Number(e.target.value))}
+                                                    autoFocus
+                                                />
+                                            ) : (
+                                                <span className="font-bold text-blue-600">{record.shifts}</span>
+                                            )}
+                                        </td>
+                                        <td className="p-4 text-right text-slate-500">
+                                            {isEditing ? (
+                                                <input 
+                                                    type="number" step="10000" className="w-28 px-2 py-1 border border-blue-400 rounded focus:ring-2 focus:ring-blue-200 outline-none text-right"
+                                                    value={editRateValue} onChange={e => setEditRateValue(Number(e.target.value))}
+                                                />
+                                            ) : (
+                                                formatCurrency(record.rateUsed)
+                                            )}
+                                        </td>
+                                        <td className="p-4 text-right">
+                                            {isEditing ? (
+                                                <div className="flex justify-end gap-2">
+                                                    <button onClick={saveEdit} className="p-2 bg-green-100 text-green-600 rounded hover:bg-green-200"><Check className="w-4 h-4" /></button>
+                                                    <button onClick={() => setEditingRecordId(null)} className="p-2 bg-slate-100 text-slate-600 rounded hover:bg-slate-200"><X className="w-4 h-4" /></button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex justify-end gap-2">
+                                                    <button onClick={() => startEditing(record)} className="p-2 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"><Edit className="w-4 h-4" /></button>
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            setDeleteId(record.id);
+                                                        }} 
+                                                        className="p-2 bg-red-50 text-red-600 rounded hover:bg-red-100 cursor-pointer"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            }) : (
+                                <tr><td colSpan={4} className="p-8 text-center text-slate-400">Chưa có dữ liệu chấm công cho ngày này tại công trình này.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  );
+    );
+};
+
+const Payroll = ({ workers, records, projects }: { workers: Worker[], records: TimeRecord[], projects: Project[] }) => {
+    const [weekEnd, setWeekEnd] = useState(() => {
+        const d = getThursdayOfWeek(new Date());
+        return d.toISOString().split('T')[0];
+    });
+    
+    // Filter state
+    const [filterProjectId, setFilterProjectId] = useState('');
+    
+    const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+    const [analyzing, setAnalyzing] = useState(false);
+
+    const weekStart = useMemo(() => {
+        const d = new Date(weekEnd);
+        d.setDate(d.getDate() - 6); 
+        return d.toISOString().split('T')[0];
+    }, [weekEnd]);
+
+    const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selected = new Date(e.target.value);
+        if (isNaN(selected.getTime())) return;
+        const thursday = getThursdayOfWeek(selected);
+        setWeekEnd(thursday.toISOString().split('T')[0]);
+        setAiAnalysis(null);
+    };
+
+    const weeklyData = useMemo(() => {
+        let filteredRecords = records.filter(r => r.date >= weekStart && r.date <= weekEnd);
+        
+        if (filterProjectId) {
+            filteredRecords = filteredRecords.filter(r => r.projectId === filterProjectId);
+        }
+        
+        const items: WeeklyPayrollItem[] = workers.map(w => {
+            const workerRecords = filteredRecords.filter(r => r.workerId === w.id);
+            const totalShifts = workerRecords.reduce((sum, r) => sum + r.shifts, 0);
+            const totalAmount = workerRecords.reduce((sum, r) => sum + (r.shifts * r.rateUsed), 0);
+            
+            const projectNames = Array.from(new Set(workerRecords.map(r => {
+                const p = projects.find(proj => proj.id === r.projectId);
+                return p ? p.name : 'Unknown';
+            })));
+
+            return {
+                worker: w,
+                totalShifts,
+                totalAmount,
+                details: workerRecords,
+                projectNames
+            };
+        });
+        
+        if (!filterProjectId) {
+            items.sort((a, b) => {
+                const pA = a.projectNames[0] || '';
+                const pB = b.projectNames[0] || '';
+                return pA.localeCompare(pB);
+            });
+        }
+        
+        return items.filter(i => i.totalShifts > 0);
+
+    }, [weekStart, weekEnd, records, workers, projects, filterProjectId]);
+
+    const handleAnalyze = async () => {
+        setAnalyzing(true);
+        const result = await analyzePayroll(weeklyData, weekStart, weekEnd);
+        setAiAnalysis(result);
+        setAnalyzing(false);
+    };
+
+    const totalPayout = weeklyData.reduce((sum, item) => sum + item.totalAmount, 0);
+
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
+                <h2 className="text-2xl font-bold text-slate-800">Bảng Lương Theo Tuần</h2>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                     <button
+                        onClick={() => window.print()}
+                        className="flex items-center px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors shadow-sm"
+                    >
+                        <FileDown className="w-4 h-4 mr-2" /> Xuất PDF / In
+                    </button>
+                    
+                    <div className="flex flex-wrap items-center gap-2">
+                        <select 
+                            value={filterProjectId} 
+                            onChange={(e) => setFilterProjectId(e.target.value)}
+                            className="px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"
+                        >
+                            <option value="">Tất cả công trình</option>
+                            {projects.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                        </select>
+
+                        <div className="flex items-center gap-2 bg-white border border-slate-300 rounded-lg px-3 py-1 shadow-sm">
+                            <div className="flex flex-col items-start mr-2 border-r border-slate-200 pr-2">
+                                <span className="text-[10px] text-slate-500 uppercase font-bold">Bắt đầu (T6)</span>
+                                <span className="text-sm font-medium text-slate-700">{formatDate(weekStart)}</span>
+                            </div>
+                            <div>
+                                <span className="text-[10px] text-slate-500 uppercase font-bold block">Kết thúc (T5)</span>
+                                <input 
+                                    type="date" 
+                                    value={weekEnd} 
+                                    onChange={handleDateChange}
+                                    className="outline-none text-sm text-slate-800 bg-transparent font-medium p-0"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="hidden print:block mb-8 text-center border-b pb-4">
+                 <h1 className="text-2xl font-bold uppercase">Bảng Lương Công Nhật</h1>
+                 <p className="text-slate-800 mt-2 text-lg font-medium">Kỳ lương: {formatDate(weekStart)} - {formatDate(weekEnd)}</p>
+                 <p className="text-slate-900 font-bold mt-1 text-xl uppercase">
+                     Công trình: {filterProjectId ? projects.find(p => p.id === filterProjectId)?.name : 'TẤT CẢ CÔNG TRÌNH'}
+                 </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6 lg:w-full print:col-span-3 print:w-full">
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden print:border-black print:shadow-none">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 border-b border-slate-200 print:bg-gray-100 print:border-black">
+                                    <tr>
+                                        <th className="p-4 font-semibold text-slate-700 print:text-black">Công Nhật</th>
+                                        <th className="p-4 font-semibold text-slate-700 print:text-black">Công Trình</th>
+                                        <th className="p-4 font-semibold text-slate-700 text-center print:text-black">Tổng Công</th>
+                                        <th className="p-4 font-semibold text-slate-700 text-right print:text-black">Lương Tuần</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 print:divide-slate-300">
+                                    {weeklyData.length > 0 ? weeklyData.map(item => {
+                                        const sortedDetails = [...item.details].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                                        return (
+                                            <tr key={item.worker.id} className="hover:bg-slate-50 print:hover:bg-transparent">
+                                                <td className="p-4">
+                                                    <div className="font-medium text-slate-800 print:text-black">{item.worker.name}</div>
+                                                    <div className="text-xs text-slate-500 print:text-gray-600">{item.worker.role}</div>
+                                                </td>
+                                                <td className="p-4 text-sm text-slate-600 print:text-black">
+                                                    {item.projectNames.map((name, idx) => (
+                                                        <div key={idx} className="flex items-center">
+                                                            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2 print:hidden"></span>
+                                                            {name}
+                                                        </div>
+                                                    ))}
+                                                </td>
+                                                <td className="p-4 text-center align-top">
+                                                    <div className="flex flex-col items-center">
+                                                        <span className="font-bold text-blue-700 text-lg print:text-black">
+                                                            {item.totalShifts}
+                                                        </span>
+                                                        <div className="flex flex-wrap justify-center gap-2 mt-1 max-w-[250px]">
+                                                            {sortedDetails.map((d, i) => (
+                                                                <span key={i} className="text-[10px] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 whitespace-nowrap print:border-slate-400 print:text-black print:text-sm print:font-semibold">
+                                                                    {formatShortDate(d.date)}: <span className="text-base font-bold">{d.shifts}</span>
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-right font-bold text-emerald-600 print:text-black">{formatCurrency(item.totalAmount)}</td>
+                                            </tr>
+                                        );
+                                    }) : (
+                                        <tr>
+                                            <td colSpan={4} className="p-8 text-center text-slate-400">
+                                                {filterProjectId ? 'Không có dữ liệu cho công trình này trong tuần' : 'Không có dữ liệu cho tuần này'}
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                                <tfoot className="bg-slate-50 font-semibold text-slate-800 print:bg-gray-100 print:border-t print:border-black">
+                                    <tr>
+                                        <td colSpan={3} className="p-4 text-right">Tổng Cộng:</td>
+                                        <td className="p-4 text-right text-emerald-700 print:text-black">{formatCurrency(totalPayout)}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-6 print:hidden">
+                     <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl p-6 text-white shadow-lg">
+                        <div className="flex items-center mb-4">
+                            <BrainCircuit className="w-6 h-6 mr-2" />
+                            <h3 className="text-lg font-bold">Trợ Lý AI</h3>
+                        </div>
+                        <p className="text-indigo-100 text-sm mb-6">
+                            Sử dụng AI để phân tích dữ liệu bảng lương, tìm ra các bất thường và tối ưu chi phí.
+                        </p>
+                        <button 
+                            onClick={handleAnalyze}
+                            disabled={analyzing || weeklyData.length === 0}
+                            className="w-full py-2 bg-white text-indigo-700 font-semibold rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {analyzing ? 'Đang phân tích...' : 'Phân Tích Ngay'}
+                        </button>
+                     </div>
+
+                     {aiAnalysis && (
+                         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                             <h3 className="font-bold text-slate-800 mb-3 border-b pb-2">Kết Quả Phân Tích</h3>
+                             <div className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
+                                 {aiAnalysis}
+                             </div>
+                         </div>
+                     )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const DebtManagement = ({ workers, records, transactions, onAddTransaction, projects }: { 
+    workers: Worker[], 
+    records: TimeRecord[], 
+    transactions: Transaction[],
+    onAddTransaction: (t: Transaction) => void,
+    projects: Project[]
+}) => {
+    // Keeping DebtManagement same as before
+    const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
+    const [isFormOpen, setIsFormOpen] = useState(false);
+    
+    // Filters
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterProjectId, setFilterProjectId] = useState('');
+
+    // New Transaction State
+    const [newTxType, setNewTxType] = useState<'advance' | 'payment'>('advance');
+    const [newTxAmount, setNewTxAmount] = useState('');
+    const [newTxDate, setNewTxDate] = useState(new Date().toISOString().split('T')[0]);
+    const [newTxNote, setNewTxNote] = useState('');
+
+    const debtData = useMemo(() => {
+        let processedWorkers = workers;
+
+        // 1. Filter by Project
+        if (filterProjectId) {
+            processedWorkers = processedWorkers.filter(w => w.currentProjectId === filterProjectId);
+        }
+
+        // 2. Filter by Name
+        if (searchTerm) {
+            processedWorkers = processedWorkers.filter(w => w.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        }
+
+        return processedWorkers.map(w => {
+            // Total Salary Earned (Lifetime) - UPDATED TO USE rateUsed
+            const workerRecords = records.filter(r => r.workerId === w.id);
+            const totalEarned = workerRecords.reduce((sum, r) => sum + (r.shifts * r.rateUsed), 0);
+            
+            // Total Transactions
+            const workerTx = transactions.filter(t => t.workerId === w.id);
+            const totalAdvanced = workerTx.filter(t => t.type === 'advance').reduce((sum, t) => sum + t.amount, 0);
+            const totalPaid = workerTx.filter(t => t.type === 'payment').reduce((sum, t) => sum + t.amount, 0);
+            
+            const remainingDebt = totalEarned - (totalAdvanced + totalPaid);
+            
+            return {
+                worker: w,
+                totalEarned,
+                totalAdvanced,
+                totalPaid,
+                remainingDebt
+            };
+        });
+    }, [workers, records, transactions, searchTerm, filterProjectId]);
+
+    const totalCompanyDebt = debtData.reduce((sum, d) => sum + d.remainingDebt, 0);
+    const selectedWorker = workers.find(w => w.id === selectedWorkerId);
+    const selectedWorkerTx = selectedWorkerId ? transactions.filter(t => t.workerId === selectedWorkerId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()) : [];
+
+    const handleAdd = async () => {
+        if (!selectedWorkerId || !newTxAmount) return;
+        const tx: Transaction = {
+            id: generateId(),
+            workerId: selectedWorkerId,
+            type: newTxType,
+            amount: Number(newTxAmount),
+            date: newTxDate,
+            note: newTxNote
+        };
+        // Ensure async operation is handled in Parent but this view only triggers callback
+        onAddTransaction(tx);
+        setNewTxAmount('');
+        setNewTxNote('');
+        setIsFormOpen(false);
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center print:hidden">
+                <h2 className="text-2xl font-bold text-slate-800">Quản Lý Công Nợ & Ứng Lương</h2>
+                 <button
+                    onClick={() => window.print()}
+                    className="flex items-center px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors shadow-sm"
+                >
+                    <FileDown className="w-4 h-4 mr-2" /> Xuất PDF / In
+                </button>
+            </div>
+            
+             <div className="hidden print:block mb-8 text-center">
+                 <h1 className="text-2xl font-bold uppercase">Báo Cáo Công Nợ</h1>
+                 <p className="text-slate-600 mt-2">Ngày lập: {formatDate(new Date().toISOString())}</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 print:hidden">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <p className="text-sm font-medium text-slate-500">Tổng Nợ Lương Cần Trả</p>
+                    <p className="text-3xl font-bold text-red-600 mt-1">{formatCurrency(totalCompanyDebt)}</p>
+                </div>
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-4 mb-4 print:hidden">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+                    <input 
+                        type="text" 
+                        placeholder="Tìm tên công nhật..." 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                </div>
+                <div className="w-full md:w-64">
+                    <select 
+                        value={filterProjectId} 
+                        onChange={(e) => setFilterProjectId(e.target.value)}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                        <option value="">Tất cả công trình</option>
+                        {projects.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Master List */}
+                <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden print:col-span-3 print:border-black print:shadow-none">
+                     <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 border-b border-slate-200 print:bg-gray-100 print:border-black">
+                                <tr>
+                                    <th className="p-4 font-semibold text-slate-700 print:text-black">Công Nhật</th>
+                                    <th className="p-4 font-semibold text-slate-700 text-right print:text-black">Tổng Lương</th>
+                                    <th className="p-4 font-semibold text-slate-700 text-right print:text-black">Đã Ứng</th>
+                                    <th className="p-4 font-semibold text-slate-700 text-right print:text-black">Đã Trả</th>
+                                    <th className="p-4 font-semibold text-slate-700 text-right print:text-black">Còn Nợ</th>
+                                    <th className="p-4 text-center print:hidden">Chi Tiết</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 print:divide-slate-300">
+                                {debtData.map(d => (
+                                    <tr key={d.worker.id} className={selectedWorkerId === d.worker.id ? "bg-blue-50 print:bg-transparent" : "hover:bg-slate-50 print:hover:bg-transparent"}>
+                                        <td className="p-4 font-medium text-slate-800 print:text-black">
+                                            {d.worker.name}
+                                            {d.worker.currentProjectId && (
+                                                <div className="text-xs text-slate-500 font-normal print:text-gray-600">
+                                                    {projects.find(p => p.id === d.worker.currentProjectId)?.name}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="p-4 text-right text-slate-600 print:text-black">{formatCurrency(d.totalEarned)}</td>
+                                        <td className="p-4 text-right text-orange-600 print:text-black">{formatCurrency(d.totalAdvanced)}</td>
+                                        <td className="p-4 text-right text-green-600 print:text-black">{formatCurrency(d.totalPaid)}</td>
+                                        <td className={`p-4 text-right font-bold ${d.remainingDebt > 0 ? 'text-red-600' : 'text-slate-400'} print:text-black`}>
+                                            {formatCurrency(d.remainingDebt)}
+                                        </td>
+                                        <td className="p-4 text-center print:hidden">
+                                            <button 
+                                                onClick={() => {
+                                                    setSelectedWorkerId(d.worker.id);
+                                                    setIsFormOpen(false);
+                                                }}
+                                                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                            >
+                                                Xem
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Detail View */}
+                <div className="space-y-6 print:hidden">
+                    {selectedWorker ? (
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-full max-h-[600px]">
+                            <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
+                                <div>
+                                    <h3 className="font-bold text-slate-800">{selectedWorker.name}</h3>
+                                    <p className="text-xs text-slate-500">{selectedWorker.role}</p>
+                                </div>
+                                <button 
+                                    onClick={() => setIsFormOpen(!isFormOpen)}
+                                    className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 flex items-center"
+                                >
+                                    <ArrowRightLeft className="w-4 h-4 mr-1.5" /> Giao Dịch
+                                </button>
+                            </div>
+
+                            {/* Add Transaction Form */}
+                            {isFormOpen && (
+                                <div className="p-4 bg-blue-50 border-b border-blue-100 animate-in fade-in slide-in-from-top-2">
+                                    <div className="space-y-3">
+                                        <div className="flex gap-2">
+                                            <button 
+                                                className={`flex-1 py-1.5 text-sm rounded-md font-medium ${newTxType === 'advance' ? 'bg-orange-100 text-orange-700 border border-orange-200' : 'bg-white text-slate-600 border border-slate-200'}`}
+                                                onClick={() => setNewTxType('advance')}
+                                            >
+                                                Ứng Lương
+                                            </button>
+                                            <button 
+                                                className={`flex-1 py-1.5 text-sm rounded-md font-medium ${newTxType === 'payment' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-white text-slate-600 border border-slate-200'}`}
+                                                onClick={() => setNewTxType('payment')}
+                                            >
+                                                Thanh Toán
+                                            </button>
+                                        </div>
+                                        <input 
+                                            type="number" 
+                                            placeholder="Số tiền..." 
+                                            className="w-full p-2 text-sm border rounded"
+                                            value={newTxAmount}
+                                            onChange={e => setNewTxAmount(e.target.value)}
+                                        />
+                                        <input 
+                                            type="date" 
+                                            className="w-full p-2 text-sm border rounded"
+                                            value={newTxDate}
+                                            onChange={e => setNewTxDate(e.target.value)}
+                                        />
+                                        <input 
+                                            type="text" 
+                                            placeholder="Ghi chú..." 
+                                            className="w-full p-2 text-sm border rounded"
+                                            value={newTxNote}
+                                            onChange={e => setNewTxNote(e.target.value)}
+                                        />
+                                        <button 
+                                            onClick={handleAdd}
+                                            className="w-full py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+                                        >
+                                            Lưu Giao Dịch
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Transaction List */}
+                            <div className="flex-1 overflow-auto p-4">
+                                <h4 className="text-xs font-semibold text-slate-500 uppercase mb-3">Lịch sử giao dịch</h4>
+                                {selectedWorkerTx.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {selectedWorkerTx.map(tx => (
+                                            <div key={tx.id} className="flex justify-between items-start p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                                <div>
+                                                    <div className={`text-sm font-semibold ${tx.type === 'advance' ? 'text-orange-600' : 'text-green-600'}`}>
+                                                        {tx.type === 'advance' ? 'Đã Ứng' : 'Thanh Toán'}
+                                                    </div>
+                                                    <div className="text-xs text-slate-500 mt-1 flex items-center">
+                                                        <Calendar className="w-3 h-3 mr-1" />
+                                                        {formatDate(tx.date)}
+                                                    </div>
+                                                    {tx.note && <div className="text-xs text-slate-600 mt-1 italic">"{tx.note}"</div>}
+                                                </div>
+                                                <div className="font-bold text-slate-800">
+                                                    {formatCurrency(tx.amount)}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-center text-slate-400 text-sm py-8">Chưa có giao dịch nào</p>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="h-64 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center text-slate-400">
+                            Chọn một công nhật để xem chi tiết
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
 };
 
 const ManageWorkers = ({ workers, projects, onAdd, onDelete, onUpdate }: any) => {
-  const initialForm = { id: '', name: '', role: 'Công nhật', currentProjectId: '', bankAccount: '', bankName: '' };
-  const [f, setF] = useState(initialForm);
-  const [isEdit, setIsEdit] = useState(false);
+    const initialFormState: Worker = { id: '', name: '', role: 'Công nhật', dailyRate: 0, currentProjectId: '', identityCardNumber: '', phone: '', bankAccount: '', bankName: '' };
+    const [form, setForm] = useState<Worker>(initialFormState);
+    const [isEditing, setIsEditing] = useState(false);
+    
+    // Deletion Modal State
+    const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const handleSave = () => {
-    if (!f.name) return alert("Vui lòng nhập tên công nhân!");
-    const workerToSave = isEdit 
-        ? { ...f, dailyRate: (workers.find((w:any) => w.id === f.id)?.dailyRate || 0) }
-        : { ...f, id: Date.now().toString(), dailyRate: 0 };
+    const handleSubmit = () => {
+        if (!form.name) return alert("Vui lòng nhập tên công nhật");
         
-    isEdit ? onUpdate(workerToSave) : onAdd(workerToSave);
-    setF(initialForm);
-    setIsEdit(false);
-  };
+        if (isEditing) {
+            onUpdate(form);
+            // alert("Cập nhật thành công!"); // Handled by parent async
+        } else {
+            onAdd({...form, id: generateId()});
+        }
+        
+        setForm(initialFormState);
+        setIsEditing(false);
+    };
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      <div className="lg:col-span-1 bg-white p-5 rounded-xl border shadow-sm h-fit space-y-4">
-        <h3 className="font-bold text-base flex items-center border-b pb-3 uppercase text-slate-700">
-          {isEdit ? <Edit className="w-5 h-5 mr-2 text-orange-500" /> : <Plus className="w-5 h-5 mr-2 text-blue-500" />}
-          {isEdit ? 'Sửa thông tin' : 'Thêm thợ mới'}
-        </h3>
-        <div className="space-y-3">
-          <div><label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Họ tên</label><input className="w-full p-3 border rounded-lg mt-1 font-medium text-sm outline-none focus:ring-2 focus:ring-blue-500" value={f.name} onChange={e => setF({...f, name: e.target.value})} /></div>
-          <div>
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Chức vụ</label>
-            <select
-                className="w-full p-3 border rounded-lg mt-1 font-medium text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white" 
-                value={f.role} 
-                onChange={e => setF({...f, role: e.target.value})} 
-            >
-                <option value="Công nhật">Công nhật</option>
-                <option value="Thợ chính">Thợ chính</option>
-                <option value="Phụ hồ">Phụ hồ</option>
-                <option value="Kỹ thuật">Kỹ thuật</option>
-                <option value="Khác">Khác</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Công trình trực thuộc</label>
-            <select className="w-full p-3 border rounded-lg mt-1 font-medium text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white" value={f.currentProjectId} onChange={e => setF({...f, currentProjectId: e.target.value})}>
-              <option value="">-- Chưa gán --</option>
-              {projects.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-          <div className="pt-2">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Tài khoản ngân hàng</h4>
-            <input className="w-full p-3 border rounded-lg text-sm mb-3 font-medium" placeholder="Số tài khoản..." value={f.bankAccount} onChange={e => setF({...f, bankAccount: e.target.value})} />
-            <input className="w-full p-3 border rounded-lg text-sm font-medium" placeholder="Tên ngân hàng..." value={f.bankName} onChange={e => setF({...f, bankName: e.target.value})} />
-          </div>
+    const handleEdit = (worker: Worker) => {
+        setForm(worker);
+        setIsEditing(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleCancel = () => {
+        setForm(initialFormState);
+        setIsEditing(false);
+    };
+
+    return (
+        <div className="space-y-6">
+            <ConfirmationModal 
+                isOpen={!!deleteId} 
+                title="Xóa Công Nhật"
+                message="Bạn có chắc chắn muốn xóa công nhật này không?"
+                onConfirm={() => {
+                    if (deleteId) onDelete(deleteId);
+                    setDeleteId(null);
+                }}
+                onCancel={() => setDeleteId(null)}
+            />
+
+            <h2 className="text-2xl font-bold text-slate-800">Quản Lý Công Nhật</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-semibold text-lg">{isEditing ? 'Sửa Thông Tin' : 'Thêm Công Nhật Mới'}</h3>
+                        {isEditing && (
+                             <button onClick={handleCancel} className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded hover:bg-slate-200">Hủy</button>
+                        )}
+                    </div>
+                    <div className="space-y-4">
+                        <input className="w-full p-2 border rounded" placeholder="Họ tên" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+                        <select className="w-full p-2 border rounded" value={form.role} onChange={e => setForm({...form, role: e.target.value})}>
+                            <option>Công nhật</option>
+                            <option>Thợ Chính</option>
+                            <option>Phụ Hồ</option>
+                            <option>Kỹ Sư</option>
+                            <option>Bảo Vệ</option>
+                        </select>
+                         <select 
+                            className="w-full p-2 border rounded" 
+                            value={form.currentProjectId || ''} 
+                            onChange={e => setForm({...form, currentProjectId: e.target.value})}
+                        >
+                            <option value="">-- Chọn Công Trình --</option>
+                            {projects.map((p: Project) => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                        </select>
+                        <div className="grid grid-cols-2 gap-2">
+                            <input className="w-full p-2 border rounded" placeholder="SĐT" value={form.phone || ''} onChange={e => setForm({...form, phone: e.target.value})} />
+                            <input className="w-full p-2 border rounded" placeholder="Số CCCD" value={form.identityCardNumber || ''} onChange={e => setForm({...form, identityCardNumber: e.target.value})} />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2">
+                             <input className="w-full p-2 border rounded" placeholder="Số TK" value={form.bankAccount || ''} onChange={e => setForm({...form, bankAccount: e.target.value})} />
+                             <input className="w-full p-2 border rounded" placeholder="Tên Ngân hàng" value={form.bankName || ''} onChange={e => setForm({...form, bankName: e.target.value})} />
+                        </div>
+
+                        <button 
+                            className={`w-full text-white py-2 rounded font-medium flex items-center justify-center ${isEditing ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'}`}
+                            onClick={handleSubmit}
+                        >
+                            {isEditing ? <Save className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />} 
+                            {isEditing ? 'Cập Nhật' : 'Thêm'}
+                        </button>
+                    </div>
+                </div>
+                <div className="md:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table className="w-full">
+                        <thead className="bg-slate-50">
+                            <tr>
+                                <th className="p-4 text-left">Tên & Liên Hệ</th>
+                                <th className="p-4 text-left">Công Trình Hiện Tại</th>
+                                <th className="p-4 text-left">Vai Trò</th>
+                                <th className="p-4 text-right">Thao Tác</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                            {workers.map((w: Worker) => {
+                                const projectName = w.currentProjectId ? projects.find((p: Project) => p.id === w.currentProjectId)?.name : '-';
+                                return (
+                                    <tr key={w.id} className={isEditing && form.id === w.id ? 'bg-orange-50' : 'hover:bg-slate-50'}>
+                                        <td className="p-4">
+                                            <div className="font-medium">{w.name}</div>
+                                            <div className="text-sm text-slate-500">{w.phone}</div>
+                                            <div className="text-xs text-slate-400 mt-1 flex items-center">
+                                                <IdCard className="w-3 h-3 mr-1" />
+                                                {w.identityCardNumber || '--'}
+                                            </div>
+                                        </td>
+                                        <td className="p-4">
+                                            <div className="flex items-center text-sm">
+                                                <Briefcase className="w-3 h-3 mr-1 text-slate-400" />
+                                                {projectName}
+                                            </div>
+                                        </td>
+                                        <td className="p-4 text-slate-500">{w.role}</td>
+                                        <td className="p-4 text-right">
+                                            <div className="flex justify-end gap-2">
+                                                <button onClick={() => handleEdit(w)} className="text-blue-600 hover:bg-blue-50 p-2 rounded">
+                                                    <Edit className="w-4 h-4" />
+                                                </button>
+                                                <button 
+                                                    type="button" 
+                                                    onClick={(e) => { 
+                                                        e.stopPropagation(); 
+                                                        setDeleteId(w.id);
+                                                    }} 
+                                                    className="text-red-500 hover:bg-red-50 p-2 rounded"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-        <div className="flex gap-2 pt-2">
-          <button onClick={handleSave} className={`flex-1 py-3 text-white rounded-lg font-bold text-xs uppercase shadow-lg ${isEdit ? 'bg-orange-500' : 'bg-blue-600'}`}>{isEdit ? 'CẬP NHẬT' : 'LƯU HỒ SƠ'}</button>
-          {isEdit && <button onClick={() => { setIsEdit(false); setF(initialForm); }} className="px-5 bg-slate-200 rounded-lg font-bold text-xs uppercase">Hủy</button>}
-        </div>
-      </div>
-      <div className="lg:col-span-3 bg-white rounded-xl border shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[600px]">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Hồ sơ công nhân</th>
-                <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Phụ trách tại</th>
-                <th className="p-4 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">Quản lý</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {workers.map((w: any) => (
-                <tr key={w.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="p-4">
-                    <p className="font-bold text-base text-slate-800">{w.name}</p>
-                    <p className="text-xs text-slate-500 font-medium uppercase mt-1">{w.role} • {w.bankAccount || 'N/A'}</p>
-                  </td>
-                  <td className="p-4">
-                    {w.currentProjectId ? (
-                      <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-bold uppercase">
-                        {projects.find((p: any) => p.id === w.currentProjectId)?.name || 'Unknown'}
-                      </span>
-                    ) : <span className="text-xs text-slate-400 font-bold italic uppercase">Vãng lai / Chưa gán</span>}
-                  </td>
-                  <td className="p-4 flex justify-center gap-3">
-                    <button onClick={() => { setF(w); setIsEdit(true); window.scrollTo({top:0, behavior:'smooth'}); }} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-all"><Edit className="w-5 h-5" /></button>
-                    <button onClick={() => { if(confirm('Xóa công nhân này?')) onDelete(w.id) }} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-all"><Trash2 className="w-5 h-5" /></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+    )
 };
 
 const ManageProjects = ({ projects, onAdd, onDelete, onUpdate }: any) => {
-    const initialForm = { id: '', name: '', address: '', status: 'active', standardRate: 500000, doubleRate: 1000000 };
-    const [f, setF] = useState<any>(initialForm);
-    const [isEdit, setIsEdit] = useState(false);
+    const initialFormState: Project = { id: '', name: '', address: '', status: 'active', standardRate: 0, doubleRate: 0 };
+    const [form, setForm] = useState<Partial<Project>>(initialFormState);
+    const [isEditing, setIsEditing] = useState(false);
+    
+    // Deletion Modal State
+    const [deleteId, setDeleteId] = useState<string | null>(null);
 
-    const handleSave = () => {
-        if (!f.name) return alert("Vui lòng nhập tên công trình!");
-        isEdit ? onUpdate(f) : onAdd({ ...f, id: Date.now().toString() });
-        setF(initialForm);
-        setIsEdit(false);
+    const handleSubmit = () => {
+        if (!form.name) return alert("Vui lòng nhập tên công trình");
+
+        if (isEditing) {
+            onUpdate(form);
+            // alert("Cập nhật công trình thành công!");
+        } else {
+            onAdd({...form, id: generateId(), status: 'active'});
+        }
+        setForm(initialFormState);
+        setIsEditing(false);
     };
 
-    return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 h-fit">
-                <h3 className="font-bold text-base border-b pb-3 uppercase text-slate-700">
-                    {isEdit ? 'Cập nhật Công Trình' : 'Khai báo Công Trình'}
-                </h3>
-                <div>
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Tên công trình</label>
-                    <input className="w-full p-3 border rounded-lg mt-1 font-medium text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="VD: Cầu Mỹ Thuận 2..." value={f.name} onChange={e => setF({...f, name: e.target.value})} />
-                </div>
-                <div>
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Địa chỉ</label>
-                    <input className="w-full p-3 border rounded-lg mt-1 font-medium text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Địa chỉ..." value={f.address} onChange={e => setF({...f, address: e.target.value})} />
-                </div>
-                <div className="grid grid-cols-2 gap-4 pt-2">
-                    <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Lương 1 công</label>
-                        <input type="number" className="w-full p-3 border rounded-lg mt-1 font-bold text-blue-600 text-sm outline-none" value={f.standardRate} onChange={e => setF({...f, standardRate: Number(e.target.value)})} />
+    const handleEdit = (p: Project) => {
+        setForm(p);
+        setIsEditing(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleCancel = () => {
+        setForm(initialFormState);
+        setIsEditing(false);
+    };
+
+     return (
+        <div className="space-y-6">
+            <ConfirmationModal 
+                isOpen={!!deleteId} 
+                title="Xóa Công Trình"
+                message="Bạn có chắc chắn muốn xóa công trình này không?"
+                onConfirm={() => {
+                    if (deleteId) onDelete(deleteId);
+                    setDeleteId(null);
+                }}
+                onCancel={() => setDeleteId(null)}
+            />
+
+            <h2 className="text-2xl font-bold text-slate-800">Quản Lý Công Trình</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-semibold text-lg">{isEditing ? 'Cập Nhật Công Trình' : 'Thêm Công Trình'}</h3>
+                         {isEditing && (
+                             <button onClick={handleCancel} className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded hover:bg-slate-200">Hủy</button>
+                        )}
                     </div>
-                    <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Lương 2 công</label>
-                        <input type="number" className="w-full p-3 border rounded-lg mt-1 font-bold text-emerald-600 text-sm outline-none" value={f.doubleRate} onChange={e => setF({...f, doubleRate: Number(e.target.value)})} />
+                    <div className="space-y-4">
+                        <input className="w-full p-2 border rounded" placeholder="Tên công trình" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+                        <input className="w-full p-2 border rounded" placeholder="Địa chỉ" value={form.address} onChange={e => setForm({...form, address: e.target.value})} />
+                        
+                        <div className="grid grid-cols-2 gap-2">
+                             <div>
+                                 <label className="text-xs text-slate-500 mb-1 block">Giá 1 công (VNĐ)</label>
+                                 <input 
+                                    className="w-full p-2 border rounded" 
+                                    type="number" 
+                                    placeholder="500,000" 
+                                    value={form.standardRate || ''} 
+                                    onChange={e => setForm({...form, standardRate: Number(e.target.value)})} 
+                                />
+                             </div>
+                             <div>
+                                 <label className="text-xs text-slate-500 mb-1 block">Giá 2 công (VNĐ)</label>
+                                 <input 
+                                    className="w-full p-2 border rounded" 
+                                    type="number" 
+                                    placeholder="1,000,000" 
+                                    value={form.doubleRate || ''} 
+                                    onChange={e => setForm({...form, doubleRate: Number(e.target.value)})} 
+                                />
+                             </div>
+                        </div>
+                        
+                        {isEditing && (
+                            <div>
+                                <label className="text-xs text-slate-500 mb-1 block">Trạng thái</label>
+                                <select 
+                                    className="w-full p-2 border rounded"
+                                    value={form.status}
+                                    onChange={e => setForm({...form, status: e.target.value as any})}
+                                >
+                                    <option value="active">Đang chạy</option>
+                                    <option value="completed">Đã hoàn thành</option>
+                                </select>
+                            </div>
+                        )}
+
+                        <button 
+                            className={`w-full text-white py-2 rounded font-medium flex items-center justify-center ${isEditing ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'}`}
+                            onClick={handleSubmit}
+                        >
+                            {isEditing ? <Save className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />} 
+                            {isEditing ? 'Cập Nhật' : 'Thêm'}
+                        </button>
                     </div>
                 </div>
-                <div>
-                     <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Trạng thái</label>
-                     <select className="w-full p-3 border rounded-lg mt-1 font-bold text-sm bg-white" value={f.status} onChange={e => setF({...f, status: e.target.value})}>
-                         <option value="active">Đang thi công</option>
-                         <option value="completed">Đã hoàn thành</option>
-                     </select>
-                </div>
-                <div className="flex gap-2 pt-2">
-                    <button onClick={handleSave} className={`w-full text-white py-3.5 rounded-xl font-bold text-xs uppercase shadow-lg shadow-blue-100 ${isEdit ? 'bg-orange-500' : 'bg-blue-600'}`}>{isEdit ? 'LƯU THAY ĐỔI' : 'TẠO DỰ ÁN MỚI'}</button>
-                    {isEdit && <button onClick={() => { setIsEdit(false); setF(initialForm); }} className="px-5 bg-slate-200 rounded-xl font-bold text-xs uppercase">Hủy</button>}
+                <div className="md:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table className="w-full">
+                        <thead className="bg-slate-50">
+                            <tr>
+                                <th className="p-4 text-left">Tên Công Trình</th>
+                                <th className="p-4 text-left">Địa Chỉ</th>
+                                <th className="p-4 text-right">Đơn Giá (1/2 công)</th>
+                                <th className="p-4 text-center">Trạng Thái</th>
+                                <th className="p-4 text-right">Thao Tác</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                            {projects.map((p: Project) => (
+                                <tr key={p.id} className={isEditing && form.id === p.id ? 'bg-orange-50' : 'hover:bg-slate-50'}>
+                                    <td className="p-4 font-medium">{p.name}</td>
+                                    <td className="p-4 text-slate-500">{p.address}</td>
+                                    <td className="p-4 text-right">
+                                        {(p.standardRate || p.doubleRate) ? (
+                                            <div className="flex flex-col text-sm">
+                                                <span className="text-blue-600">1C: {formatCurrency(p.standardRate || 0)}</span>
+                                                <span className="text-indigo-600">2C: {formatCurrency(p.doubleRate || 0)}</span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-slate-400 italic text-sm">Chưa set</span>
+                                        )}
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        <span className={`px-2 py-1 rounded text-xs ${p.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                                            {p.status === 'active' ? 'Đang chạy' : 'Hoàn thành'}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 text-right">
+                                        <div className="flex justify-end gap-2">
+                                            <button onClick={() => handleEdit(p)} className="text-blue-600 hover:bg-blue-50 p-2 rounded">
+                                                <Edit className="w-4 h-4" />
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={(e) => { 
+                                                    e.stopPropagation(); 
+                                                    setDeleteId(p.id);
+                                                }} 
+                                                className="text-red-500 hover:bg-red-50 p-2 rounded"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             </div>
-            <div className="md:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <table className="w-full text-left min-w-[600px]">
+        </div>
+    )
+}
+
+// ActivityLogs Component
+const ActivityLogs = ({ logs }: { logs: ActivityLog[] }) => {
+    return (
+        <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-slate-800">Nhật Ký Hoạt Động</h2>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <table className="w-full text-left">
                     <thead className="bg-slate-50 border-b border-slate-200">
                         <tr>
-                            <th className="p-5 text-xs font-bold text-slate-400 uppercase tracking-widest">Dự án</th>
-                            <th className="p-5 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">Đơn giá (1/2 công)</th>
-                            <th className="p-5 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">Trạng thái</th>
-                            <th className="p-5 text-right text-xs font-bold text-slate-400 uppercase tracking-widest">Quản lý</th>
+                            <th className="p-4 font-semibold text-slate-700">Thời Gian</th>
+                            <th className="p-4 font-semibold text-slate-700">Người Dùng</th>
+                            <th className="p-4 font-semibold text-slate-700">Hành Động</th>
+                            <th className="p-4 font-semibold text-slate-700">Chi Tiết</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {projects.map((p: any) => (
-                            <tr key={p.id} className="hover:bg-slate-50/50">
-                                <td className="p-5">
-                                    <p className="font-bold text-slate-800 text-base">{p.name}</p>
-                                    <p className="text-xs text-slate-400 font-medium uppercase mt-1">{p.address}</p>
-                                </td>
-                                <td className="p-5 text-center">
-                                    <div className="text-sm font-bold text-slate-600 mb-1">{formatCurrency(p.standardRate || 0)} <span className="text-xs text-slate-400 font-normal">/1c</span></div>
-                                    <div className="text-sm font-bold text-emerald-600">{formatCurrency(p.doubleRate || 0)} <span className="text-xs text-slate-400 font-normal">/2c</span></div>
-                                </td>
-                                <td className="p-5 text-center">
-                                    <span className={`text-xs font-bold px-3 py-1.5 rounded-full uppercase ${p.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                                        {p.status === 'active' ? 'Đang thi công' : 'Đã hoàn thành'}
-                                    </span>
-                                </td>
-                                <td className="p-5 text-right">
-                                    <div className="flex justify-end gap-3">
-                                        <button onClick={() => { setF(p); setIsEdit(true); }} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg"><Edit className="w-5 h-5" /></button>
-                                        <button onClick={() => { if(confirm('Xóa dự án này?')) onDelete(p.id); }} className="p-2 text-red-600 hover:bg-red-100 rounded-lg"><Trash2 className="w-5 h-5" /></button>
-                                    </div>
-                                </td>
+                        {logs.map(log => (
+                            <tr key={log.id} className="hover:bg-slate-50">
+                                <td className="p-4 text-slate-500 whitespace-nowrap">{formatDateTime(log.timestamp)}</td>
+                                <td className="p-4 font-medium">{log.userName}</td>
+                                <td className="p-4 text-blue-600">{log.action}</td>
+                                <td className="p-4 text-slate-600">{log.details}</td>
                             </tr>
                         ))}
+                        {logs.length === 0 && (
+                            <tr><td colSpan={4} className="p-8 text-center text-slate-400">Chưa có nhật ký nào.</td></tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -768,379 +1540,376 @@ const ManageProjects = ({ projects, onAdd, onDelete, onUpdate }: any) => {
     );
 };
 
-const DebtManagement = ({ workers, records, transactions, onAddTx, onDeleteTx }: any) => {
-    const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
-    const [amount, setAmount] = useState('');
-    const [note, setNote] = useState('');
+// SystemBackup Component
+const SystemBackup = ({ onRestore, workers, projects, records, transactions, logs }: { onRestore: (data: any) => void, workers: Worker[], projects: Project[], records: TimeRecord[], transactions: Transaction[], logs: ActivityLog[] }) => {
+    const handleExport = () => {
+        const data = {
+            workers,
+            projects,
+            records,
+            transactions,
+            logs,
+            version: "1.0",
+            exportDate: new Date().toISOString()
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `backup_T_and_T_${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+    };
 
-    const debtSummary = useMemo(() => {
-        return workers.map((w: any) => {
-            const earned = records.filter((r: any) => r.workerId === w.id).reduce((s: number, r: any) => s + (r.shifts * r.rateUsed), 0);
-            const wTx = transactions.filter((t: any) => t.workerId === w.id);
-            const advanced = wTx.filter((t: any) => t.type === 'advance').reduce((s: number, t: any) => s + t.amount, 0);
-            const paid = wTx.filter((t: any) => t.type === 'payment').reduce((s: number, t: any) => s + t.amount, 0);
-            return { worker: w, earned, advanced, paid, balance: earned - (advanced + paid), history: wTx };
-        });
-    }, [workers, records, transactions]);
+    const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
 
-    const active = debtSummary.find((d: any) => d.worker.id === selectedWorkerId);
-
-    const handleTx = (type: 'advance' | 'payment') => {
-        if (!selectedWorkerId || !amount) return alert("Vui lòng nhập số tiền!");
-        onAddTx({ id: Date.now().toString(), workerId: selectedWorkerId, type, amount: Number(amount), date: new Date().toISOString().split('T')[0], note: note || (type==='advance'?'Tạm ứng lương':'Thanh toán lương') });
-        setAmount(''); setNote('');
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const data = JSON.parse(event.target?.result as string);
+                if (window.confirm("CẢNH BÁO: Hành động này sẽ ghi đè toàn bộ dữ liệu hiện tại bằng dữ liệu từ file backup. Dữ liệu sẽ được gửi lên server. Bạn có chắc chắn không?")) {
+                    onRestore(data);
+                }
+            } catch (error) {
+                alert("Lỗi đọc file: " + error);
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = ''; // Reset input
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 bg-white rounded-2xl border shadow-sm overflow-hidden h-fit">
-                <div className="p-5 bg-slate-50 border-b font-bold text-xs uppercase tracking-widest text-slate-500">Bảng theo dõi công nợ công nhân</div>
-                <table className="w-full text-left">
-                    <thead>
-                        <tr className="bg-slate-50/50 text-xs font-bold text-slate-400 uppercase tracking-widest">
-                            <th className="p-4">Tên công nhân</th>
-                            <th className="p-4 text-right">Tổng lương tích lũy</th>
-                            <th className="p-4 text-right">Đã ứng</th>
-                            <th className="p-4 text-right">Số dư còn lại</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {debtSummary.map((d: any) => (
-                            <tr key={d.worker.id} onClick={() => setSelectedWorkerId(d.worker.id)} className={`cursor-pointer hover:bg-slate-50 transition-colors ${selectedWorkerId === d.worker.id ? 'bg-blue-50' : ''}`}>
-                                <td className="p-4 font-bold text-sm text-slate-800">{d.worker.name}</td>
-                                <td className="p-4 text-right text-sm font-medium text-slate-500">{formatCurrency(d.earned)}</td>
-                                <td className="p-4 text-right text-sm font-bold text-orange-600">{formatCurrency(d.advanced)}</td>
-                                <td className="p-4 text-right font-bold text-base text-blue-700">{formatCurrency(d.balance)}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-            <div className="space-y-4">
-                {active ? (
-                    <div className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
-                        <h3 className="font-bold text-base border-b pb-3 uppercase">Giao dịch cho: {active.worker.name}</h3>
-                        <div className="space-y-4">
-                            <div><label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Số tiền (VNĐ)</label><input type="number" className="w-full p-3 border rounded-lg mt-1 font-bold text-xl text-blue-700 outline-none" value={amount} onChange={e => setAmount(e.target.value)} /></div>
-                            <div><label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Nội dung</label><input className="w-full p-3 border rounded-lg mt-1 font-medium text-sm outline-none" value={note} onChange={e => setNote(e.target.value)} /></div>
-                            <div className="flex gap-3 pt-2">
-                                <button onClick={() => handleTx('advance')} className="flex-1 bg-orange-600 text-white py-3 rounded-xl font-bold text-xs uppercase hover:bg-orange-700 shadow-lg shadow-orange-100">ỨNG LƯƠNG</button>
-                                <button onClick={() => handleTx('payment')} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold text-xs uppercase hover:bg-emerald-700 shadow-lg shadow-emerald-100">THANH TOÁN</button>
-                            </div>
+        <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-slate-800">Sao Lưu & Phục Hồi</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-3 bg-blue-100 text-blue-600 rounded-lg">
+                            <Download className="w-6 h-6" />
                         </div>
-                        <div className="pt-5 border-t mt-5">
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Lịch sử giao dịch gần nhất</h4>
-                            <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-                                {active.history.length === 0 && <p className="text-center text-slate-300 text-sm italic">Chưa có giao dịch</p>}
-                                {active.history.sort((a:any,b:any)=>new Date(b.date).getTime() - new Date(a.date).getTime()).map((tx: any) => (
-                                    <div key={tx.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100 group">
-                                        <div className="overflow-hidden">
-                                            <p className={`text-[10px] font-bold uppercase ${tx.type==='advance'?'text-orange-600':'text-emerald-600'}`}>{tx.type==='advance'?'Tạm ứng':'Đã trả'}</p>
-                                            <p className="text-xs font-bold text-slate-700 truncate mt-0.5">{tx.note}</p>
-                                            <p className="text-[10px] text-slate-400 font-bold mt-0.5">{formatDate(tx.date)}</p>
-                                        </div>
-                                        <div className="text-right flex items-center gap-3">
-                                            <p className="font-bold text-sm">{formatCurrency(tx.amount)}</p>
-                                            <button onClick={() => onDeleteTx(tx.id)} className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                        <h3 className="font-bold text-lg">Sao Lưu Dữ Liệu</h3>
+                    </div>
+                    <p className="text-slate-500 mb-6">Tải xuống toàn bộ dữ liệu hệ thống (từ Server) dưới dạng file JSON để lưu trữ an toàn.</p>
+                    <button onClick={handleExport} className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                        Tải Xuống Backup
+                    </button>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-3 bg-emerald-100 text-emerald-600 rounded-lg">
+                            <Upload className="w-6 h-6" />
                         </div>
+                        <h3 className="font-bold text-lg">Phục Hồi Dữ Liệu</h3>
                     </div>
-                ) : (
-                    <div className="bg-blue-50 p-10 rounded-2xl border border-dashed border-blue-200 text-center flex flex-col items-center">
-                        <Wallet className="w-12 h-12 text-blue-300 mb-4" />
-                        <h3 className="font-bold text-blue-800 uppercase text-sm">Chọn công nhân</h3>
-                        <p className="text-xs text-blue-600 mt-2 font-medium leading-relaxed">Vui lòng chọn một công nhân ở bảng bên trái để quản lý tiền ứng và thanh toán công nợ.</p>
-                    </div>
-                )}
+                    <p className="text-slate-500 mb-6">Khôi phục dữ liệu từ file backup. Dữ liệu sẽ được gửi lên Server để đồng bộ.</p>
+                    <label className="w-full flex items-center justify-center py-2 bg-white border-2 border-dashed border-emerald-500 text-emerald-600 rounded-lg hover:bg-emerald-50 cursor-pointer font-medium">
+                        <input type="file" accept=".json" onChange={handleImport} className="hidden" />
+                        Chọn File Backup
+                    </label>
+                </div>
             </div>
         </div>
     );
 };
 
-// --- Main App ---
+// Main App Component
+const App = () => {
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [view, setView] = useState<ViewMode>('dashboard');
+    const [mobileOpen, setMobileOpen] = useState(false);
+    
+    // Global Loading State
+    const [isLoading, setIsLoading] = useState(false);
 
-export default function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [view, setView] = useState<ViewMode>('dashboard');
-  const [mobileOpen, setMobileOpen] = useState(false);
-  
-  // Data State
-  const [workers, setWorkers] = useState<Worker[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [records, setRecords] = useState<TimeRecord[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [logs, setLogs] = useState<ActivityLog[]>([]);
+    // Data State (Initially Empty)
+    const [workers, setWorkers] = useState<Worker[]>([]);
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [records, setRecords] = useState<TimeRecord[]>([]);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [logs, setLogs] = useState<ActivityLog[]>([]);
 
-  // Sync State
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [syncError, setSyncError] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+    // Fetch initial data on login
+    useEffect(() => {
+        const loadData = async () => {
+            if (!currentUser) return;
+            
+            setIsLoading(true);
+            try {
+                // Use Promise.allSettled to allow some APIs to fail (like 404s on new deployments)
+                // without crashing the whole app load.
+                const results = await Promise.allSettled([
+                    api.getWorkers(),
+                    api.getProjects(),
+                    api.getRecords(),
+                    api.getTransactions(),
+                    api.getLogs()
+                ]);
 
-  // Load Initial Data (API -> LocalStorage -> Mock)
-  useEffect(() => {
-    const loadData = async () => {
+                // Helper to extract data or return empty array if failed
+                const extract = <T,>(result: PromiseSettledResult<T>, name: string): T => {
+                    if (result.status === 'fulfilled') return result.value;
+                    console.warn(`Failed to load ${name} (using empty default):`, result.reason);
+                    return [] as any; // Cast for simplicity, assuming array return types
+                };
+
+                setWorkers(extract(results[0], 'Workers') || []);
+                setProjects(extract(results[1], 'Projects') || []);
+                setRecords(extract(results[2], 'Records') || []);
+                setTransactions(extract(results[3], 'Transactions') || []);
+                setLogs(extract(results[4], 'Logs') || []);
+                
+            } catch (error) {
+                console.error("Critical failure loading data:", error);
+                // No alert here to prevent blocking UI on transient network errors
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadData();
+    }, [currentUser]);
+
+    const addLog = async (action: string, details: string) => {
+        if (!currentUser) return;
+        const newLog: ActivityLog = {
+            id: generateId(),
+            userId: currentUser.id,
+            userName: currentUser.name,
+            action,
+            details,
+            timestamp: new Date().toISOString()
+        };
+        // Optimistic update
+        setLogs(prev => [newLog, ...prev]);
+        // Sync with background
         try {
-            // 1. Try fetching from API (Vercel Postgres)
-            const response = await fetch('/api/storage');
-            if (response.ok) {
-                const data = await response.json();
-                setWorkers(data.workers || []);
-                setProjects(data.projects || []);
-                setRecords(data.records || []);
-                setTransactions(data.transactions || []);
-                setLogs(data.logs || []);
-                setLastSaved(new Date());
-            } else {
-                throw new Error("API not available");
-            }
-        } catch (err) {
-            console.warn("Falling back to LocalStorage/Mock Data:", err);
-            // 2. Fallback to LocalStorage
-            const savedData = localStorage.getItem('app_data_v1');
-            if (savedData) {
-                const data = JSON.parse(savedData);
-                setWorkers(data.workers || []);
-                setProjects(data.projects || []);
-                setRecords(data.records || []);
-                setTransactions(data.transactions || []);
-                setLogs(data.logs || []);
-            } else {
-                // 3. Fallback to Mock Data
-                setWorkers(MOCK_WORKERS);
-                setProjects(MOCK_PROJECTS);
-                setRecords(MOCK_RECORDS);
-                setTransactions(MOCK_TRANSACTIONS);
-                setLogs(MOCK_LOGS);
-            }
+            await api.createLog(newLog);
+        } catch(e) { console.error("Log failed", e); }
+    };
+
+    const handleLogin = (user: User) => {
+        setCurrentUser(user);
+        setView('dashboard');
+        // We do not await this log to prevent UI block
+        // In real app, auth is handled by backend session
+    };
+
+    const handleLogout = () => {
+        setCurrentUser(null);
+        setWorkers([]);
+        setProjects([]);
+        setRecords([]);
+        setTransactions([]);
+        setLogs([]);
+    };
+
+    // Async Handlers
+    const handleAddRecords = async (newRecords: TimeRecord[]) => {
+        setIsLoading(true);
+        try {
+            const savedRecords = await api.createRecords(newRecords);
+            setRecords(prev => [...prev, ...savedRecords]);
+            await addLog('Chấm công', `Thêm ${newRecords.length} bản ghi chấm công`);
+        } catch (error) {
+            alert("Lỗi khi lưu chấm công");
         } finally {
             setIsLoading(false);
         }
     };
-    loadData();
-  }, []);
 
-  // Auto-Save Effect (Debounced)
-  useEffect(() => {
-    if (isLoading) return;
-
-    const saveData = async () => {
-        setIsSyncing(true);
-        setSyncError(false);
-        const payload = { workers, projects, records, transactions, logs, savedAt: new Date() };
-
-        // 1. Save to LocalStorage (Always safe)
-        localStorage.setItem('app_data_v1', JSON.stringify(payload));
-
+    const handleUpdateRecord = async (id: string, shifts: number, rate: number) => {
+        setIsLoading(true);
         try {
-            // 2. Try saving to API
-            const response = await fetch('/api/storage', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (!response.ok) throw new Error("Sync failed");
-            setLastSaved(new Date());
-        } catch (err) {
-            console.warn("Cloud sync failed (API missing?), saved locally only.");
-            setSyncError(true);
+            const updated = await api.updateRecord(id, shifts, rate);
+            setRecords(prev => prev.map(r => r.id === id ? updated : r));
+            await addLog('Sửa chấm công', `Cập nhật bản ghi ${id}`);
+        } catch (error) {
+             alert("Lỗi khi cập nhật");
         } finally {
-            setIsSyncing(false);
+            setIsLoading(false);
         }
     };
 
-    const timer = setTimeout(saveData, 2000); // Auto-save after 2s of inactivity
-    return () => clearTimeout(timer);
-  }, [workers, projects, records, transactions, logs, isLoading]);
+    const handleDeleteRecord = async (id: string) => {
+        setIsLoading(true);
+        try {
+            await api.deleteRecord(id);
+            setRecords(prev => prev.filter(r => r.id !== id));
+            await addLog('Xóa chấm công', `Xóa bản ghi ${id}`);
+        } catch (error) {
+            alert("Lỗi khi xóa");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-  const logAction = (action: string, details: string) => {
-    if (!user) return;
-    setLogs(prev => [{ id: Date.now().toString(), userId: user.id, userName: user.name, action, details, timestamp: new Date().toISOString() }, ...prev]);
-  };
+    const handleAddTransaction = async (tx: Transaction) => {
+        setIsLoading(true);
+        try {
+            const newTx = await api.createTransaction(tx);
+            setTransactions(prev => [...prev, newTx]);
+            await addLog('Giao dịch', `${tx.type === 'advance' ? 'Ứng' : 'Thanh toán'} ${formatCurrency(tx.amount)}`);
+        } catch (error) {
+            alert("Lỗi giao dịch");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-  const handleAddTx = (t: Transaction) => {
-      setTransactions(prev => [...prev, t]);
-      logAction('Tài chính', `${t.type==='advance'?'Chi tiền ứng':'Thanh toán lương'} cho ${workers.find(w=>w.id===t.workerId)?.name}`);
-  };
+    const handleAddWorker = async (w: Worker) => {
+        setIsLoading(true);
+        try {
+            const newWorker = await api.createWorker(w);
+            setWorkers(prev => [...prev, newWorker]);
+            await addLog('Thêm công nhật', `Thêm công nhật ${w.name}`);
+        } catch (error) {
+            alert("Lỗi thêm nhân viên");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-  const handleDeleteRecord = (id: string) => {
-      setRecords(prev => prev.filter(r => r.id !== id));
-      logAction('Chấm công', `Xóa bản ghi chấm công ${id}`);
-  };
+    const handleUpdateWorker = async (w: Worker) => {
+        setIsLoading(true);
+        try {
+            const updated = await api.updateWorker(w);
+            setWorkers(prev => prev.map(item => item.id === w.id ? updated : item));
+            await addLog('Sửa công nhật', `Cập nhật công nhật ${w.name}`);
+        } catch (error) {
+            alert("Lỗi cập nhật nhân viên");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-  const handleUpdateRecord = (id: string, newShifts: number) => {
-      setRecords(prev => prev.map(r => r.id === id ? { ...r, shifts: newShifts } : r));
-      logAction('Chấm công', `Cập nhật bản ghi ${id} thành ${newShifts} công`);
-  };
+    const handleDeleteWorker = async (id: string) => {
+        setIsLoading(true);
+        try {
+            await api.deleteWorker(id);
+            setWorkers(prev => prev.filter(w => w.id !== id));
+            await addLog('Xóa công nhật', `Xóa công nhật ID ${id}`);
+        } catch (error) {
+             alert("Lỗi xóa nhân viên");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-  const chartData = useMemo(() => {
-      const dates = [...new Set(records.map(r => r.date))].sort();
-      const recentDates = dates.slice(-10);
-      return recentDates.map(date => {
-          const dayRecords = records.filter(r => r.date === date);
-          const dataPoint: any = { name: formatDate(date) };
-          projects.forEach(p => { dataPoint[p.name] = 0; });
-          dayRecords.forEach(r => {
-              const project = projects.find(p => p.id === r.projectId);
-              if (project) { dataPoint[project.name] = (dataPoint[project.name] || 0) + r.shifts; }
-          });
-          return dataPoint;
-      });
-  }, [records, projects]);
+    const handleAddProject = async (p: Project) => {
+        setIsLoading(true);
+        try {
+            const newProject = await api.createProject(p);
+            setProjects(prev => [...prev, newProject]);
+            await addLog('Thêm công trình', `Thêm công trình ${p.name}`);
+        } catch (error) {
+            alert("Lỗi thêm công trình");
+        } finally {
+             setIsLoading(false);
+        }
+    };
 
-  const chartColors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
+    const handleUpdateProject = async (p: Project) => {
+        setIsLoading(true);
+        try {
+            const updated = await api.updateProject(p);
+            setProjects(prev => prev.map(item => item.id === p.id ? updated : item));
+            await addLog('Sửa công trình', `Cập nhật công trình ${p.name}`);
+        } catch (error) {
+            alert("Lỗi cập nhật công trình");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-  // --- Render ---
+    const handleDeleteProject = async (id: string) => {
+        setIsLoading(true);
+        try {
+            await api.deleteProject(id);
+            setProjects(prev => prev.filter(p => p.id !== id));
+            await addLog('Xóa công trình', `Xóa công trình ID ${id}`);
+        } catch (error) {
+            alert("Lỗi xóa công trình");
+        } finally {
+             setIsLoading(false);
+        }
+    };
 
-  if (isLoading) {
-      return <div className="h-screen flex items-center justify-center bg-slate-50 text-blue-600"><Loader2 className="w-10 h-10 animate-spin" /></div>;
-  }
+    const handleRestore = async (data: any) => {
+        setIsLoading(true);
+        try {
+            await api.restoreBackup(data);
+            // Reload data after restore
+            const results = await Promise.allSettled([
+                api.getWorkers(),
+                api.getProjects(),
+                api.getRecords(),
+                api.getTransactions(),
+                api.getLogs()
+            ]);
+            
+            const extract = <T,>(result: PromiseSettledResult<T>) => result.status === 'fulfilled' ? result.value : [];
+            
+            setWorkers(extract(results[0]) as any || []);
+            setProjects(extract(results[1]) as any || []);
+            setRecords(extract(results[2]) as any || []);
+            setTransactions(extract(results[3]) as any || []);
+            setLogs(extract(results[4]) as any || []);
+            
+            await addLog('Phục hồi dữ liệu', 'Khôi phục dữ liệu từ file backup');
+            alert("Phục hồi thành công!");
+        } catch (error) {
+            alert("Lỗi phục hồi dữ liệu");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-  if (!user) return <LoginScreen onLogin={u => setUser(u)} />;
+    if (!currentUser) {
+        return <LoginScreen onLogin={handleLogin} />;
+    }
 
-  return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
-      <Sidebar currentView={view} setView={setView} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} currentUser={user} onLogout={() => setUser(null)} />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between p-4 bg-white border-b border-slate-200">
-          <div className="flex items-center lg:hidden">
-            <button onClick={() => setMobileOpen(true)} className="p-2 text-slate-600 mr-2"><Menu className="w-6 h-6" /></button>
-            <h1 className="text-sm font-black tracking-tighter uppercase text-slate-700">Công ty T&T</h1>
-          </div>
-          
-          {/* Sync Status Indicator */}
-          <div className="flex-1 flex justify-end lg:justify-end items-center gap-4">
-             {isSyncing ? (
-                 <span className="flex items-center text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full animate-pulse">
-                     <RefreshCw className="w-3 h-3 mr-2 animate-spin" /> Đang lưu...
-                 </span>
-             ) : syncError ? (
-                 <span className="flex items-center text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-full" title="Chưa kết nối API, dữ liệu đang lưu ở trình duyệt">
-                     <CloudOff className="w-3 h-3 mr-2" /> Lưu cục bộ
-                 </span>
-             ) : (
-                 <span className="flex items-center text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full">
-                     <Cloud className="w-3 h-3 mr-2" /> Đã đồng bộ {lastSaved ? lastSaved.toLocaleTimeString() : ''}
-                 </span>
-             )}
-             <div className="hidden lg:flex w-8 h-8 rounded-lg bg-blue-600 text-white items-center justify-center font-bold text-xs shadow-lg">{user.name.charAt(0)}</div>
-          </div>
-        </header>
-
-        <main className="flex-1 overflow-auto p-4 md:p-8">
-          <div className="max-w-7xl mx-auto">
-            {view === 'dashboard' && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                    <div>
-                        <h2 className="text-3xl font-black text-slate-800 tracking-tight">XIN CHÀO, {user.name.toUpperCase()}!</h2>
-                        <p className="text-slate-500 font-medium text-base mt-1">Hôm nay là {formatDate(new Date().toISOString())} - Chúc một ngày làm việc hiệu quả!</p>
+    return (
+        <div className="flex min-h-screen bg-slate-100">
+            {isLoading && <LoadingOverlay />}
+            
+            <Sidebar 
+                currentView={view} 
+                setView={setView} 
+                mobileOpen={mobileOpen} 
+                setMobileOpen={setMobileOpen} 
+                currentUser={currentUser}
+                onLogout={handleLogout}
+            />
+            
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 sm:px-6 print:hidden">
+                    <button 
+                        onClick={() => setMobileOpen(true)}
+                        className="lg:hidden p-2 rounded-md text-slate-400 hover:text-slate-500 hover:bg-slate-100"
+                    >
+                        <Menu className="w-6 h-6" />
+                    </button>
+                    <div className="flex-1 flex justify-end">
+                       {/* Header actions if needed */}
                     </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-5">
-                    <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600"><Users className="w-7 h-7" /></div>
-                    <div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Tổng nhân sự</p><p className="text-3xl font-black text-slate-800 mt-1">{workers.length}</p></div>
-                  </div>
-                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-5">
-                    <div className="w-14 h-14 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600"><HardHat className="w-7 h-7" /></div>
-                    <div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest">CT Đang chạy</p><p className="text-3xl font-black text-slate-800 mt-1">{projects.filter(p => p.status === 'active').length}</p></div>
-                  </div>
-                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-5">
-                    <div className="w-14 h-14 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600"><CalendarClock className="w-7 h-7" /></div>
-                    <div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Sản lượng tích lũy</p><p className="text-3xl font-black text-slate-800 mt-1">{records.reduce((s, r) => s + r.shifts, 0)}</p></div>
-                  </div>
-                </div>
-                <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
-                  <h3 className="font-bold text-slate-700 mb-6 flex items-center gap-3 text-base"><History className="w-5 h-5 text-blue-500" /> TỔNG HỢP CÔNG THEO NGÀY</h3>
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontWeight: 700, fontSize: 11}} />
-                        <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontWeight: 700, fontSize: 11}} />
-                        <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px'}} />
-                        <Legend iconType="circle" wrapperStyle={{paddingTop: '20px', fontSize: '12px', fontWeight: 'bold'}} />
-                        {projects.map((p: any, index: number) => (
-                            <Bar key={p.id} dataKey={p.name} stackId="a" fill={chartColors[index % chartColors.length]} radius={[4, 4, 0, 0]} barSize={32} />
-                        ))}
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
-            )}
-            {view === 'timesheet' && <Timesheet workers={workers} projects={projects} records={records} onDeleteRecord={handleDeleteRecord} onUpdateRecord={handleUpdateRecord} onAddRecord={(r: any) => { setRecords(p => [...p, ...r]); logAction('Chấm công', `Ghi nhận ${r.length} bản ghi chấm công`); }} />}
-            {view === 'payroll' && <Payroll workers={workers} records={records} projects={projects} currentUser={user} />}
-            {view === 'debt' && <DebtManagement workers={workers} records={records} transactions={transactions} onAddTx={handleAddTx} onDeleteTx={(id:string)=>setTransactions(prev=>prev.filter(t=>t.id!==id))} />}
-            {view === 'workers' && <ManageWorkers workers={workers} projects={projects} onAdd={(w: any) => setWorkers(p => [...p, w])} onDelete={(id: any) => setWorkers(p => p.filter(x => x.id !== id))} onUpdate={(w: any) => setWorkers(p => p.map(x => x.id === w.id ? w : x))} />}
-            {view === 'projects' && <ManageProjects projects={projects} onAdd={(p: any) => setProjects((prev: any) => [...prev, p])} onDelete={(id: any) => setProjects((prev: any) => prev.filter((p: any) => p.id !== id))} onUpdate={(p: any) => setProjects((prev: any) => prev.map((item: any) => item.id === p.id ? p : item))} />}
-            {view === 'backup' && user.role === 'admin' && (
-              <div className="space-y-6 bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
-                <h2 className="text-2xl font-bold flex items-center gap-3 uppercase"><Database className="text-blue-600 w-7 h-7" /> Trung tâm Dữ liệu & Sao lưu</h2>
-                
-                <div className="p-6 bg-blue-50 border border-blue-200 rounded-xl mb-4">
-                    <h3 className="font-bold text-blue-800 flex items-center gap-2 mb-2"><Info className="w-5 h-5" /> TRẠNG THÁI ĐỒNG BỘ</h3>
-                    {syncError ? (
-                        <p className="text-sm text-orange-700 leading-relaxed">Hệ thống đang chạy chế độ <strong>OFFLINE</strong> (lưu trên trình duyệt). Để lưu vĩnh viễn trên Vercel Postgres, bạn cần triển khai API backend.</p>
-                    ) : (
-                        <p className="text-sm text-emerald-700 leading-relaxed">Hệ thống đang kết nối với <strong>CLOUD API</strong>. Dữ liệu được an toàn.</p>
-                    )}
-                </div>
+                </header>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   {/* Manual Trigger */}
-                   <div className="p-8 border-2 border-slate-100 rounded-2xl bg-white hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer group flex flex-col items-center text-center">
-                      <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mb-5 group-hover:scale-110 transition-transform shadow-sm"><RefreshCw className={`w-8 h-8 ${isSyncing ? 'animate-spin' : ''}`} /></div>
-                      <h4 className="font-black text-lg uppercase text-slate-800">Đồng bộ ngay</h4>
-                      <p className="text-sm text-slate-500 mt-2 font-medium">Bắt buộc hệ thống lưu dữ liệu lên máy chủ ngay lập tức.</p>
-                      <button onClick={() => {
-                          // Trigger saving by flipping a dummy state if needed, but the effect handles updates.
-                          // Here we can just re-save.
-                          const saveData = async () => {
-                            setIsSyncing(true);
-                            try {
-                                await fetch('/api/storage', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ workers, projects, records, transactions, logs, savedAt: new Date() })
-                                });
-                                setLastSaved(new Date());
-                                alert('Đồng bộ thành công!');
-                            } catch(e) { alert('Lỗi đồng bộ: API chưa sẵn sàng.'); }
-                            setIsSyncing(false);
-                          };
-                          saveData();
-                      }} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs uppercase">Thực hiện</button>
-                   </div>
+                <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+                    <div className="max-w-7xl mx-auto">
+                        {view === 'dashboard' && <Dashboard workers={workers} projects={projects} records={records} />}
+                        {view === 'timesheet' && <Timesheet workers={workers} projects={projects} records={records} onAddRecord={handleAddRecords} onUpdateRecord={handleUpdateRecord} onDeleteRecord={handleDeleteRecord} />}
+                        {view === 'payroll' && <Payroll workers={workers} records={records} projects={projects} />}
+                        {view === 'debt' && <DebtManagement workers={workers} records={records} transactions={transactions} onAddTransaction={handleAddTransaction} projects={projects} />}
+                        {view === 'workers' && <ManageWorkers workers={workers} projects={projects} onAdd={handleAddWorker} onUpdate={handleUpdateWorker} onDelete={handleDeleteWorker} />}
+                        {view === 'projects' && <ManageProjects projects={projects} onAdd={handleAddProject} onUpdate={handleUpdateProject} onDelete={handleDeleteProject} />}
+                        {view === 'logs' && currentUser.role === 'admin' && <ActivityLogs logs={logs} />}
+                        {view === 'backup' && currentUser.role === 'admin' && <SystemBackup onRestore={handleRestore} workers={workers} projects={projects} records={records} transactions={transactions} logs={logs} />}
+                    </div>
+                </main>
+            </div>
+        </div>
+    );
+};
 
-                   {/* Excel Report */}
-                   <div className="p-8 border-2 border-slate-100 rounded-2xl bg-white hover:border-orange-400 hover:shadow-lg transition-all cursor-pointer group flex flex-col items-center text-center" onClick={() => exportToCSV(records, 'BaoCaoChamCong_TT')}>
-                      <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 mb-5 group-hover:scale-110 transition-transform shadow-sm"><FileDown className="w-8 h-8" /></div>
-                      <h4 className="font-black text-lg uppercase text-slate-800">Xuất Excel/CSV</h4>
-                      <p className="text-sm text-slate-500 mt-2 font-medium">Xuất dữ liệu chấm công hiện tại ra file Excel để làm báo cáo.</p>
-                      <button className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg font-bold text-xs uppercase">Tải báo cáo</button>
-                   </div>
-                </div>
-              </div>
-            )}
-            {view === 'logs' && user.role === 'admin' && (
-              <div className="space-y-5">
-                <h2 className="text-2xl font-bold flex items-center gap-3 uppercase"><History className="text-slate-700 w-7 h-7" /> Nhật ký truy cập hệ thống</h2>
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                  <table className="w-full text-left">
-                    <thead className="bg-slate-50 border-b border-slate-200"><tr><th className="p-5 text-xs font-bold text-slate-400 uppercase tracking-widest">Thời điểm</th><th className="p-5 text-xs font-bold text-slate-400 uppercase tracking-widest">Tài khoản</th><th className="p-5 text-xs font-bold text-slate-400 uppercase tracking-widest">Hành động</th><th className="p-5 text-xs font-bold text-slate-400 uppercase tracking-widest">Chi tiết</th></tr></thead>
-                    <tbody className="divide-y divide-slate-100">{logs.map(l => <tr key={l.id} className="hover:bg-slate-50/50 transition-colors"><td className="p-5 text-xs text-slate-400 font-bold">{formatDateTime(l.timestamp)}</td><td className="p-5 font-bold text-slate-700 text-sm">{l.userName.toUpperCase()}</td><td className="p-5 font-bold text-blue-600 text-sm uppercase">{l.action}</td><td className="p-5 text-sm text-slate-600 font-medium">{l.details}</td></tr>)}</tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        </main>
-      </div>
-    </div>
-  );
-}
+export default App;
