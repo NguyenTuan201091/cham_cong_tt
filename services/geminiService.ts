@@ -1,10 +1,28 @@
 import { GoogleGenAI } from "@google/genai";
 import { WeeklyPayrollItem } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const analyzePayroll = async (payrollData: WeeklyPayrollItem[], weekStart: string, weekEnd: string): Promise<string> => {
   try {
+    // Safely retrieve API Key. 
+    // In a browser environment without a bundler polyfill, accessing 'process' directly causes a ReferenceError.
+    let apiKey = '';
+    try {
+        if (typeof process !== 'undefined' && process.env) {
+            apiKey = process.env.API_KEY || '';
+        }
+    } catch (e) {
+        console.warn("Could not access process.env (Browser environment detected)");
+    }
+
+    if (!apiKey) {
+        // Return a friendly message instead of crashing
+        console.warn("Gemini API Key is missing.");
+        return "Chưa cấu hình API Key. Tính năng AI tạm thời không khả dụng.";
+    }
+
+    // Initialize the client only when needed and safe
+    const ai = new GoogleGenAI({ apiKey: apiKey });
+
     const prompt = `
       Bạn là một trợ lý kế toán cho công ty xây dựng. Dưới đây là dữ liệu bảng lương từ ngày ${weekStart} đến ${weekEnd}.
       Dữ liệu JSON:
@@ -25,7 +43,7 @@ export const analyzePayroll = async (payrollData: WeeklyPayrollItem[], weekStart
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash-latest',
       contents: prompt,
     });
 
