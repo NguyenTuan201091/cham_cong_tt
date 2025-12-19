@@ -32,9 +32,8 @@ const generateMockRecords = (): TimeRecord[] => {
     date.setDate(date.getDate() - i);
     const dateStr = date.toISOString().split('T')[0];
     
-    // Add random records
-    if (i % 6 !== 0) { // Skip some days (Sunday-ish)
-        // Record for Worker 1 (Project 1)
+    if (i % 6 !== 0) { 
+        // Worker 1 in Project 1
         records.push({
             id: `r-${i}-1`,
             workerId: 'w1',
@@ -43,34 +42,23 @@ const generateMockRecords = (): TimeRecord[] => {
             shifts: 1,
             rateUsed: getRate('w1')
         });
-        
-        // Record for Worker 2 (Project 1)
-        if (i === 2) {
-             records.push({
-                id: `r-${i}-2`,
-                workerId: 'w2',
-                projectId: 'p1',
-                date: dateStr,
-                shifts: 2,
-                rateUsed: 325000, 
-                note: 'Tăng ca đổ bê tông'
-            });
-        } else {
-             records.push({
-                id: `r-${i}-2`,
-                workerId: 'w2',
-                projectId: 'p1', // Fixed: w2 works in p1, not p2
-                date: dateStr,
-                shifts: 1,
-                rateUsed: getRate('w2')
-            });
-        }
 
-        // Record for Worker 3 (Project 2)
+        // Worker 2 (Trần Văn B) -> STRICTLY PROJECT 1
+        records.push({
+            id: `r-${i}-2`,
+            workerId: 'w2',
+            projectId: 'p1', // Ensuring p1
+            date: dateStr,
+            shifts: i === 2 ? 2 : 1,
+            rateUsed: i === 2 ? 325000 : getRate('w2'),
+            note: i === 2 ? 'Tăng ca' : ''
+        });
+
+        // Worker 3 (Lê Thị C) -> STRICTLY PROJECT 2
         records.push({
             id: `r-${i}-3`,
             workerId: 'w3',
-            projectId: 'p2',
+            projectId: 'p2', // Ensuring p2
             date: dateStr,
             shifts: 1,
             rateUsed: getRate('w3')
