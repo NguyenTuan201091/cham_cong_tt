@@ -1,218 +1,132 @@
-import { Worker, Project, TimeRecord, Transaction, ActivityLog } from "../types";
-import { MOCK_WORKERS, MOCK_PROJECTS, MOCK_RECORDS, MOCK_TRANSACTIONS, MOCK_LOGS } from "../constants";
+// services/api.ts
+// API layer dùng PostgreSQL thông qua /api/storage
+// KHÔNG localStorage – KHÔNG mock data
 
-// Base URL for your API.
 const API_BASE = '/api';
 
-const headers = {
-    'Content-Type': 'application/json',
+export type AppStorage = {
+  workers: any[];
+  projects: any[];
+  records: any[];
+  transactions: any[];
+  logs: any[];
 };
 
-// Generic fetch wrapper
-const fetchJson = async (url: string, options?: RequestInit) => {
-    try {
-        const res = await fetch(`${API_BASE}${url}`, {
-            headers,
-            ...options,
-        });
-        
-        if (!res.ok) {
-            // Throw error to trigger fallback
-            throw new Error(`API Error: ${res.status}`);
-        }
-        
-        if (res.status === 204) return null;
-        return await res.json();
-    } catch (err) {
-        throw err;
-    }
+const defaultStorage: AppStorage = {
+  workers: [],
+  projects: [],
+  records: [],
+  transactions: [],
+  logs: [],
 };
 
-// --- LocalStorage "Database" Helper ---
-// This mimics a database by saving data to the browser's LocalStorage
-const STORAGE_KEYS = {
-    WORKERS: 'tt_app_workers',
-    PROJECTS: 'tt_app_projects',
-    RECORDS: 'tt_app_records',
-    TRANSACTIONS: 'tt_app_transactions',
-    LOGS: 'tt_app_logs',
+// ---- Helpers ----
+const fetchJSON = async (url: string, options?: RequestInit) => {
+  const res = await fetch(`${API_BASE}${url}`, {
+    headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',
+    ...options,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API ${res.status}: ${text}`);
+  }
+
+  if (res.status === 204) return null;
+  return res.json();
 };
 
-const LocalDB = {
-    get: <T>(key: string, defaultData: T): T => {
-        if (typeof window === 'undefined') return defaultData;
-        const stored = localStorage.getItem(key);
-        if (!stored) {
-            // Initialize with default data if empty
-            localStorage.setItem(key, JSON.stringify(defaultData));
-            return defaultData;
-        }
-        return JSON.parse(stored);
-    },
-    set: <T>(key: string, data: T): T => {
-        if (typeof window !== 'undefined') {
-            localStorage.setItem(key, JSON.stringify(data));
-        }
-        return data;
-    },
-    // Simulate specific DB operations
-    addItem: <T>(key: string, item: T, defaultList: T[]): T => {
-        const list = LocalDB.get<T[]>(key, defaultList);
-        const newList = [item, ...list]; // Add to top
-        LocalDB.set(key, newList);
-        return item;
-    },
-    updateItem: <T extends { id: string }>(key: string, item: T, defaultList: T[]): T => {
-        const list = LocalDB.get<T[]>(key, defaultList);
-        const newList = list.map(i => i.id === item.id ? item : i);
-        LocalDB.set(key, newList);
-        return item;
-    },
-    deleteItem: <T extends { id: string }>(key: string, id: string, defaultList: T[]): void => {
-        const list = LocalDB.get<T[]>(key, defaultList);
-        const newList = list.filter(i => i.id !== id);
-        LocalDB.set(key, newList);
-    }
-};
-
-// Helper function to handle API calls with LocalStorage fallback
-const callApi = async <T>(
-    apiCall: () => Promise<T>, 
-    fallbackLogic: () => T
-): Promise<T> => {
-    try {
-        // 1. Try Real API
-        return await apiCall();
-    } catch (error) {
-        // 2. If API fails (404/Network Error), use LocalStorage logic
-        // console.warn(`API unavailable. Using LocalStorage.`);
-        return fallbackLogic();
-    }
-};
-
+// ---- Storage API ----
 export const api = {
-    // --- Workers ---
-    getWorkers: (): Promise<Worker[]> => 
-        callApi(
-            () => fetchJson('/workers'), 
-            () => LocalDB.get(STORAGE_KEYS.WORKERS, MOCK_WORKERS)
-        ),
-        
-    createWorker: (data: Worker): Promise<Worker> => 
-        callApi(
-            () => fetchJson('/workers', { method: 'POST', body: JSON.stringify(data) }), 
-            () => LocalDB.addItem(STORAGE_KEYS.WORKERS, data, MOCK_WORKERS)
-        ),
-        
-    updateWorker: (data: Worker): Promise<Worker> => 
-        callApi(
-            () => fetchJson(`/workers/${data.id}`, { method: 'PUT', body: JSON.stringify(data) }), 
-            () => LocalDB.updateItem(STORAGE_KEYS.WORKERS, data, MOCK_WORKERS)
-        ),
-        
-    deleteWorker: (id: string): Promise<void> => 
-        callApi(
-            () => fetchJson(`/workers/${id}`, { method: 'DELETE' }), 
-            () => LocalDB.deleteItem(STORAGE_KEYS.WORKERS, id, MOCK_WORKERS)
-        ),
+  // 🔹 LẤY TOÀN BỘ DATA TỪ POSTGRES
+  async getStorage(): Promise<AppStorage> {
+    const data = await fetchJSON('/storage');
+    return {
+      ...defaultStorage,
+      ...data,
+    };
+  },
 
-    // --- Projects ---
-    getProjects: (): Promise<Project[]> => 
-        callApi(
-            () => fetchJson('/projects'), 
-            () => LocalDB.get(STORAGE_KEYS.PROJECTS, MOCK_PROJECTS)
-        ),
-        
-    createProject: (data: Project): Promise<Project> => 
-        callApi(
-            () => fetchJson('/projects', { method: 'POST', body: JSON.stringify(data) }), 
-            () => LocalDB.addItem(STORAGE_KEYS.PROJECTS, data, MOCK_PROJECTS)
-        ),
-        
-    updateProject: (data: Project): Promise<Project> => 
-        callApi(
-            () => fetchJson(`/projects/${data.id}`, { method: 'PUT', body: JSON.stringify(data) }), 
-            () => LocalDB.updateItem(STORAGE_KEYS.PROJECTS, data, MOCK_PROJECTS)
-        ),
-        
-    deleteProject: (id: string): Promise<void> => 
-        callApi(
-            () => fetchJson(`/projects/${id}`, { method: 'DELETE' }), 
-            () => LocalDB.deleteItem(STORAGE_KEYS.PROJECTS, id, MOCK_PROJECTS)
-        ),
+  // 🔹 LƯU TOÀN BỘ DATA LÊN POSTGRES
+  async saveStorage(data: AppStorage): Promise<void> {
+    await fetchJSON('/storage', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 
-    // --- Records (Timesheet) ---
-    getRecords: (): Promise<TimeRecord[]> => 
-        callApi(
-            () => fetchJson('/records'), 
-            () => LocalDB.get(STORAGE_KEYS.RECORDS, MOCK_RECORDS)
-        ),
-        
-    createRecords: (data: TimeRecord[]): Promise<TimeRecord[]> => 
-        callApi(
-            () => fetchJson('/records/batch', { method: 'POST', body: JSON.stringify(data) }), 
-            () => {
-                const current = LocalDB.get(STORAGE_KEYS.RECORDS, MOCK_RECORDS);
-                const updated = [...current, ...data];
-                LocalDB.set(STORAGE_KEYS.RECORDS, updated);
-                return data;
-            }
-        ),
-        
-    updateRecord: (id: string, shifts: number, rate: number): Promise<TimeRecord> => 
-        callApi(
-            () => fetchJson(`/records/${id}`, { method: 'PATCH', body: JSON.stringify({ shifts, rateUsed: rate }) }), 
-            () => {
-                const list = LocalDB.get<TimeRecord[]>(STORAGE_KEYS.RECORDS, MOCK_RECORDS);
-                const updatedList = list.map(r => r.id === id ? { ...r, shifts, rateUsed: rate } : r);
-                LocalDB.set(STORAGE_KEYS.RECORDS, updatedList);
-                return updatedList.find(r => r.id === id) as TimeRecord;
-            }
-        ),
-        
-    deleteRecord: (id: string): Promise<void> => 
-        callApi(
-            () => fetchJson(`/records/${id}`, { method: 'DELETE' }), 
-            () => LocalDB.deleteItem(STORAGE_KEYS.RECORDS, id, MOCK_RECORDS)
-        ),
+  // -------------------------
+  // 🔽 CÁC HÀM TIỆN ÍCH (CRUD)
+  // -------------------------
 
-    // --- Transactions ---
-    getTransactions: (): Promise<Transaction[]> => 
-        callApi(
-            () => fetchJson('/transactions'), 
-            () => LocalDB.get(STORAGE_KEYS.TRANSACTIONS, MOCK_TRANSACTIONS)
-        ),
-        
-    createTransaction: (data: Transaction): Promise<Transaction> => 
-        callApi(
-            () => fetchJson('/transactions', { method: 'POST', body: JSON.stringify(data) }), 
-            () => LocalDB.addItem(STORAGE_KEYS.TRANSACTIONS, data, MOCK_TRANSACTIONS)
-        ),
+  async getWorkers() {
+    const s = await this.getStorage();
+    return s.workers;
+  },
 
-    // --- Logs ---
-    getLogs: (): Promise<ActivityLog[]> => 
-        callApi(
-            () => fetchJson('/logs'), 
-            () => LocalDB.get(STORAGE_KEYS.LOGS, MOCK_LOGS)
-        ),
-        
-    createLog: (data: ActivityLog): Promise<ActivityLog> => 
-        callApi(
-            () => fetchJson('/logs', { method: 'POST', body: JSON.stringify(data) }), 
-            () => LocalDB.addItem(STORAGE_KEYS.LOGS, data, MOCK_LOGS)
-        ),
+  async addWorker(worker: any) {
+    const s = await this.getStorage();
+    s.workers = [worker, ...s.workers];
+    await this.saveStorage(s);
+    return worker;
+  },
 
-    // --- System ---
-    restoreBackup: (data: any): Promise<void> => 
-        callApi(
-            () => fetchJson('/system/restore', { method: 'POST', body: JSON.stringify(data) }), 
-            () => {
-                if(data.workers) LocalDB.set(STORAGE_KEYS.WORKERS, data.workers);
-                if(data.projects) LocalDB.set(STORAGE_KEYS.PROJECTS, data.projects);
-                if(data.records) LocalDB.set(STORAGE_KEYS.RECORDS, data.records);
-                if(data.transactions) LocalDB.set(STORAGE_KEYS.TRANSACTIONS, data.transactions);
-                if(data.logs) LocalDB.set(STORAGE_KEYS.LOGS, data.logs);
-                return Promise.resolve();
-            }
-        ),
+  async updateWorker(worker: any) {
+    const s = await this.getStorage();
+    s.workers = s.workers.map((w) => (w.id === worker.id ? worker : w));
+    await this.saveStorage(s);
+    return worker;
+  },
+
+  async deleteWorker(id: string) {
+    const s = await this.getStorage();
+    s.workers = s.workers.filter((w) => w.id !== id);
+    await this.saveStorage(s);
+  },
+
+  async getProjects() {
+    const s = await this.getStorage();
+    return s.projects;
+  },
+
+  async saveProjects(projects: any[]) {
+    const s = await this.getStorage();
+    s.projects = projects;
+    await this.saveStorage(s);
+  },
+
+  async getRecords() {
+    const s = await this.getStorage();
+    return s.records;
+  },
+
+  async saveRecords(records: any[]) {
+    const s = await this.getStorage();
+    s.records = records;
+    await this.saveStorage(s);
+  },
+
+  async getTransactions() {
+    const s = await this.getStorage();
+    return s.transactions;
+  },
+
+  async saveTransactions(transactions: any[]) {
+    const s = await this.getStorage();
+    s.transactions = transactions;
+    await this.saveStorage(s);
+  },
+
+  async getLogs() {
+    const s = await this.getStorage();
+    return s.logs;
+  },
+
+  async addLog(log: any) {
+    const s = await this.getStorage();
+    s.logs = [log, ...s.logs];
+    await this.saveStorage(s);
+    return log;
+  },
 };
