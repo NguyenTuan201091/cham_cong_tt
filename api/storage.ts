@@ -1,14 +1,8 @@
 import { sql } from '@vercel/postgres';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-export const runtime = 'nodejs';
-
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
-) {
+export default async function handler(req: any, res: any) {
   try {
-    // Tạo bảng nếu chưa có
+    // CREATE TABLE ONCE
     await sql`
       CREATE TABLE IF NOT EXISTS app_storage (
         id SERIAL PRIMARY KEY,
@@ -17,37 +11,36 @@ export default async function handler(
       );
     `;
 
+    // GET DATA
     if (req.method === 'GET') {
       const { rows } = await sql`
-        SELECT data FROM app_storage
+        SELECT data
+        FROM app_storage
         ORDER BY updated_at DESC
         LIMIT 1
       `;
       return res.status(200).json(rows[0]?.data ?? {});
     }
 
+    // SAVE DATA
     if (req.method === 'POST') {
-      const payload = req.body;
+      const body = req.body;
+
+      if (!body || typeof body !== 'object') {
+        return res.status(400).json({ error: 'Invalid body' });
+      }
 
       await sql`
         INSERT INTO app_storage (data)
-        VALUES (${JSON.stringify(payload)})
+        VALUES (${JSON.stringify(body)})
       `;
 
-      await sql`
-        DELETE FROM app_storage
-        WHERE id NOT IN (
-          SELECT id FROM app_storage
-          ORDER BY updated_at DESC
-          LIMIT 5
-        )
-      `;
-
-      return res.status(200).json({ message: 'Đã đồng bộ thành công' });
+      return res.status(200).json({ ok: true });
     }
 
-    return res.status(405).end();
-  } catch (error: any) {
-    return res.status(500).json({ error: error.message });
+    return res.status(405).json({ error: 'Method not allowed' });
+  } catch (err: any) {
+    console.error('API STORAGE ERROR:', err);
+    return res.status(500).json({ error: err.message });
   }
 }
