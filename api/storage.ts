@@ -2,7 +2,7 @@ import { sql } from '@vercel/postgres';
 
 export default async function handler(req: any, res: any) {
   try {
-    // CREATE TABLE ONCE
+    // Ensure table exists
     await sql`
       CREATE TABLE IF NOT EXISTS app_storage (
         id SERIAL PRIMARY KEY,
@@ -11,7 +11,7 @@ export default async function handler(req: any, res: any) {
       );
     `;
 
-    // GET DATA
+    // -------- GET --------
     if (req.method === 'GET') {
       const { rows } = await sql`
         SELECT data
@@ -22,17 +22,27 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json(rows[0]?.data ?? {});
     }
 
-    // SAVE DATA
+    // -------- POST --------
     if (req.method === 'POST') {
-      const body = req.body;
+      // ⚠️ PARSE BODY THỦ CÔNG
+      let body = '';
+      await new Promise<void>((resolve, reject) => {
+        req.on('data', (chunk: any) => {
+          body += chunk.toString();
+        });
+        req.on('end', () => resolve());
+        req.on('error', reject);
+      });
 
-      if (!body || typeof body !== 'object') {
-        return res.status(400).json({ error: 'Invalid body' });
+      if (!body) {
+        return res.status(400).json({ error: 'Empty body' });
       }
+
+      const data = JSON.parse(body);
 
       await sql`
         INSERT INTO app_storage (data)
-        VALUES (${JSON.stringify(body)})
+        VALUES (${JSON.stringify(data)})
       `;
 
       return res.status(200).json({ ok: true });
@@ -40,7 +50,7 @@ export default async function handler(req: any, res: any) {
 
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (err: any) {
-    console.error('API STORAGE ERROR:', err);
+    console.error('STORAGE API ERROR:', err);
     return res.status(500).json({ error: err.message });
   }
 }
