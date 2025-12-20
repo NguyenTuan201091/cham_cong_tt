@@ -1,39 +1,28 @@
-import { Pool } from 'pg';
-
-const pool = new Pool({
-  connectionString:
-    process.env.POSTGRES_URL ||
-    process.env.DATABASE_URL ||
-    process.env.POSTGRES_URL_NON_POOLING,
-  ssl: { rejectUnauthorized: false },
-});
+import { sql } from '@vercel/postgres';
 
 export default async function handler(req: any, res: any) {
-  let client;
-
   try {
-    client = await pool.connect();
-
-    // Create table if not exists
-    await client.query(`
+    // tạo bảng nếu chưa có
+    await sql`
       CREATE TABLE IF NOT EXISTS app_storage (
         id SERIAL PRIMARY KEY,
         data JSONB,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-    `);
+    `;
 
+    // GET
     if (req.method === 'GET') {
-      const result = await client.query(`
+      const { rows } = await sql`
         SELECT data
         FROM app_storage
         ORDER BY updated_at DESC
         LIMIT 1
-      `);
-
-      return res.status(200).json(result.rows[0]?.data ?? {});
+      `;
+      return res.status(200).json(rows[0]?.data ?? {});
     }
 
+    // POST
     if (req.method === 'POST') {
       let body = '';
       await new Promise<void>((resolve, reject) => {
@@ -48,10 +37,10 @@ export default async function handler(req: any, res: any) {
 
       const data = JSON.parse(body);
 
-      await client.query(
-        `INSERT INTO app_storage (data) VALUES ($1)`,
-        [data]
-      );
+      await sql`
+        INSERT INTO app_storage (data)
+        VALUES (${JSON.stringify(data)})
+      `;
 
       return res.status(200).json({ ok: true });
     }
@@ -60,7 +49,5 @@ export default async function handler(req: any, res: any) {
   } catch (err: any) {
     console.error('STORAGE API ERROR:', err);
     return res.status(500).json({ error: err.message });
-  } finally {
-    client?.release();
   }
 }
