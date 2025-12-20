@@ -1796,44 +1796,80 @@ const App = () => {
         }
     };
 
-    const handleAddProject = async (p: Project) => {
-        setIsLoading(true);
-        try {
-            const newProject = await api.createProject(p);
-            setProjects(prev => [...prev, newProject]);
-            await addLog('Thêm công trình', `Thêm công trình ${p.name}`);
-        } catch (error) {
-            alert("Lỗi thêm công trình");
-        } finally {
-             setIsLoading(false);
-        }
+   const handleAddProject = async (p: Project) => {
+  setIsLoading(true);
+  try {
+    const storage = await api.getStorage();
+
+    const newProject: Project = {
+      ...p,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
     };
 
-    const handleUpdateProject = async (p: Project) => {
-        setIsLoading(true);
-        try {
-            const updated = await api.updateProject(p);
-            setProjects(prev => prev.map(item => item.id === p.id ? updated : item));
-            await addLog('Sửa công trình', `Cập nhật công trình ${p.name}`);
-        } catch (error) {
-            alert("Lỗi cập nhật công trình");
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    storage.projects = [
+      newProject,
+      ...storage.projects,
+    ];
 
-    const handleDeleteProject = async (id: string) => {
-        setIsLoading(true);
-        try {
-            await api.deleteProject(id);
-            setProjects(prev => prev.filter(p => p.id !== id));
-            await addLog('Xóa công trình', `Xóa công trình ID ${id}`);
-        } catch (error) {
-            alert("Lỗi xóa công trình");
-        } finally {
-             setIsLoading(false);
-        }
-    };
+    await api.saveStorage(storage);
+
+    setProjects(prev => [newProject, ...prev]);
+
+    await addLog('Thêm công trình', `Thêm công trình ${p.name}`);
+  } catch (error) {
+    console.error(error);
+    alert("Lỗi thêm công trình");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+
+   const handleUpdateProject = async (p: Project) => {
+  setIsLoading(true);
+  try {
+    const storage = await api.getStorage();
+
+    storage.projects = storage.projects.map(project =>
+      project.id === p.id ? { ...project, ...p } : project
+    );
+
+    await api.saveStorage(storage);
+
+    setProjects(prev =>
+      prev.map(item => (item.id === p.id ? p : item))
+    );
+
+    await addLog('Sửa công trình', `Cập nhật công trình ${p.name}`);
+  } catch (error) {
+    console.error(error);
+    alert('Lỗi cập nhật công trình');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+const handleDeleteProject = async (id: string) => {
+  setIsLoading(true);
+  try {
+    const storage = await api.getStorage();
+
+    storage.projects = storage.projects.filter(p => p.id !== id);
+
+    await api.saveStorage(storage);
+
+    setProjects(prev => prev.filter(p => p.id !== id));
+
+    await addLog('Xóa công trình', `Xóa công trình ID ${id}`);
+  } catch (error) {
+    console.error(error);
+    alert('Lỗi xóa công trình');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
     const handleRestore = async (data: any) => {
         setIsLoading(true);
