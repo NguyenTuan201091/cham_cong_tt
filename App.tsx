@@ -1712,7 +1712,7 @@ const App = () => {
             setRecords(prev => [...prev, ...savedRecords]);
             await addLog('Chấm công', `Thêm ${newRecords.length} bản ghi chấm công`);
         } catch (error) {
-            alert("Lỗi khi lưu chấm công");
+            alert("Lỗi khi lưu chấm công. Vui lòng thử lại.");
         } finally {
             setIsLoading(false);
         }
@@ -1725,7 +1725,7 @@ const App = () => {
             setRecords(prev => prev.map(r => r.id === id ? updated : r));
             await addLog('Sửa chấm công', `Cập nhật bản ghi ${id}`);
         } catch (error) {
-             alert("Lỗi khi cập nhật");
+             alert("Lỗi khi cập nhật. Vui lòng thử lại.");
         } finally {
             setIsLoading(false);
         }
@@ -1737,8 +1737,9 @@ const App = () => {
             await api.deleteRecord(id);
             setRecords(prev => prev.filter(r => r.id !== id));
             await addLog('Xóa chấm công', `Xóa bản ghi ${id}`);
-        } catch (error) {
-            alert("Lỗi khi xóa");
+        } catch (error: any) {
+            console.error("Delete failed:", error);
+            alert(`Lỗi khi xóa: ${error?.message || "Không xác định"}. Vui lòng thử lại.`);
         } finally {
             setIsLoading(false);
         }
@@ -1751,7 +1752,7 @@ const App = () => {
             setTransactions(prev => [...prev, newTx]);
             await addLog('Giao dịch', `${tx.type === 'advance' ? 'Ứng' : 'Thanh toán'} ${formatCurrency(tx.amount)}`);
         } catch (error) {
-            alert("Lỗi giao dịch");
+            alert("Lỗi giao dịch. Vui lòng thử lại.");
         } finally {
             setIsLoading(false);
         }
@@ -1764,7 +1765,7 @@ const App = () => {
             setWorkers(prev => [...prev, newWorker]);
             await addLog('Thêm công nhật', `Thêm công nhật ${w.name}`);
         } catch (error) {
-            alert("Lỗi thêm nhân viên");
+            alert("Lỗi thêm nhân viên. Vui lòng thử lại.");
         } finally {
             setIsLoading(false);
         }
@@ -1777,7 +1778,7 @@ const App = () => {
             setWorkers(prev => prev.map(item => item.id === w.id ? updated : item));
             await addLog('Sửa công nhật', `Cập nhật công nhật ${w.name}`);
         } catch (error) {
-            alert("Lỗi cập nhật nhân viên");
+            alert("Lỗi cập nhật nhân viên. Vui lòng thử lại.");
         } finally {
             setIsLoading(false);
         }
@@ -1789,87 +1790,53 @@ const App = () => {
             await api.deleteWorker(id);
             setWorkers(prev => prev.filter(w => w.id !== id));
             await addLog('Xóa công nhật', `Xóa công nhật ID ${id}`);
-        } catch (error) {
-             alert("Lỗi xóa nhân viên");
+        } catch (error: any) {
+             console.error("Delete failed:", error);
+             alert(`Lỗi xóa nhân viên: ${error?.message || "Không xác định"}`);
         } finally {
             setIsLoading(false);
         }
     };
 
-   const handleAddProject = async (p: Project) => {
-  setIsLoading(true);
-  try {
-    const storage = await api.getStorage();
-
-    const newProject: Project = {
-      ...p,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
+    const handleAddProject = async (p: Project) => {
+        setIsLoading(true);
+        try {
+            const newProject = await api.createProject(p);
+            setProjects(prev => [...prev, newProject]);
+            await addLog('Thêm công trình', `Thêm công trình ${p.name}`);
+        } catch (error) {
+            alert("Lỗi thêm công trình. Vui lòng thử lại.");
+        } finally {
+             setIsLoading(false);
+        }
     };
 
-    storage.projects = [
-      newProject,
-      ...storage.projects,
-    ];
+    const handleUpdateProject = async (p: Project) => {
+        setIsLoading(true);
+        try {
+            const updated = await api.updateProject(p);
+            setProjects(prev => prev.map(item => item.id === p.id ? updated : item));
+            await addLog('Sửa công trình', `Cập nhật công trình ${p.name}`);
+        } catch (error) {
+            alert("Lỗi cập nhật công trình. Vui lòng thử lại.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-    await api.saveStorage(storage);
-
-    setProjects(prev => [newProject, ...prev]);
-
-    await addLog('Thêm công trình', `Thêm công trình ${p.name}`);
-  } catch (error) {
-    console.error(error);
-    alert("Lỗi thêm công trình");
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-
-   const handleUpdateProject = async (p: Project) => {
-  setIsLoading(true);
-  try {
-    const storage = await api.getStorage();
-
-    storage.projects = storage.projects.map(project =>
-      project.id === p.id ? { ...project, ...p } : project
-    );
-
-    await api.saveStorage(storage);
-
-    setProjects(prev =>
-      prev.map(item => (item.id === p.id ? p : item))
-    );
-
-    await addLog('Sửa công trình', `Cập nhật công trình ${p.name}`);
-  } catch (error) {
-    console.error(error);
-    alert('Lỗi cập nhật công trình');
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-const handleDeleteProject = async (id: string) => {
-  setIsLoading(true);
-  try {
-    const storage = await api.getStorage();
-
-    storage.projects = storage.projects.filter(p => p.id !== id);
-
-    await api.saveStorage(storage);
-
-    setProjects(prev => prev.filter(p => p.id !== id));
-
-    await addLog('Xóa công trình', `Xóa công trình ID ${id}`);
-  } catch (error) {
-    console.error(error);
-    alert('Lỗi xóa công trình');
-  } finally {
-    setIsLoading(false);
-  }
-};
-
+    const handleDeleteProject = async (id: string) => {
+        setIsLoading(true);
+        try {
+            await api.deleteProject(id);
+            setProjects(prev => prev.filter(p => p.id !== id));
+            await addLog('Xóa công trình', `Xóa công trình ID ${id}`);
+        } catch (error: any) {
+            console.error("Delete failed:", error);
+            alert(`Lỗi xóa công trình: ${error?.message || "Không xác định"}`);
+        } finally {
+             setIsLoading(false);
+        }
+    };
 
     const handleRestore = async (data: any) => {
         setIsLoading(true);
