@@ -784,6 +784,21 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
         setAiAnalysis(null);
     };
 
+    // Generate array of dates for the week
+    const dateColumns = useMemo(() => {
+        const dates: string[] = [];
+        const start = new Date(weekStart);
+        const end = new Date(weekEnd);
+        const current = new Date(start);
+
+        while (current <= end) {
+            dates.push(current.toISOString().split('T')[0]);
+            current.setDate(current.getDate() + 1);
+        }
+
+        return dates;
+    }, [weekStart, weekEnd]);
+
     const weeklyData = useMemo(() => {
         let filteredRecords = records.filter(r => r.date >= weekStart && r.date <= weekEnd);
 
@@ -867,41 +882,71 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
         wsData.push([`Kỳ lương: ${formatDate(weekStart)} - ${formatDate(weekEnd)}`]);
         wsData.push([]);
 
-        // Add data grouped by project
+        // Add data grouped by project with horizontal date layout
         groupedData.forEach((group, groupIdx) => {
             // Project header
             wsData.push([`CÔNG TRÌNH: ${group.projectName.toUpperCase()}`]);
-            wsData.push(['Công nhật', 'Tổng Công', 'Lương Tuần', 'Số TK', 'Ngân hàng']);
+
+            // Headers with dates
+            const headers = ['Công nhật', 'Công Trình'];
+            dateColumns.forEach(date => {
+                headers.push(formatShortDate(date));
+            });
+            headers.push('Tổng Công', 'Lương Tuần', 'Số TK', 'Ngân hàng');
+            wsData.push(headers);
 
             // Workers in this project
             group.items.forEach(item => {
-                wsData.push([
+                const row = [
                     `${item.worker.name} (${item.worker.role})`,
-                    item.totalShifts,
-                    item.totalAmount,
+                    item.projectNames.join(', ')
+                ];
+
+                // Add shift counts for each date
+                dateColumns.forEach(date => {
+                    const dayRecord = item.details.find(d => d.date === date);
+                    row.push(dayRecord ? dayRecord.shifts.toString() : '0');
+                });
+
+                row.push(
+                    item.totalShifts.toString(),
+                    item.totalAmount.toString(),
                     item.worker.bankAccount || 'Chưa cập nhật',
                     item.worker.bankName || 'Chưa cập nhật'
-                ]);
+                );
+                wsData.push(row);
             });
 
             // Subtotal
-            wsData.push(['', '', group.subtotal, '', `Subtotal: ${formatCurrency(group.subtotal)}`]);
+            const subtotalRow = ['', ''];
+            dateColumns.forEach(() => subtotalRow.push(''));
+            subtotalRow.push('', group.subtotal.toString(), '', `Subtotal: ${formatCurrency(group.subtotal)}`);
+            wsData.push(subtotalRow);
             wsData.push([]);
         });
 
-        // Grand total
-        wsData.push(['', '', totalPayout, '', `TỔNG CỘNG: ${formatCurrency(totalPayout)}`]);
+        // Grand total - prominent
+        wsData.push([]);
+        const totalRow = ['', ''];
+        dateColumns.forEach(() => totalRow.push(''));
+        totalRow.push('TỔNG CỘNG:', totalPayout.toString(), '', formatCurrency(totalPayout));
+        wsData.push(totalRow);
 
         const ws = XLSX.utils.aoa_to_sheet(wsData);
 
         // Set column widths
-        ws['!cols'] = [
+        const colWidths = [
             { wch: 30 }, // Công nhật
+            { wch: 20 }  // Công Trình
+        ];
+        dateColumns.forEach(() => colWidths.push({ wch: 8 })); // Date columns
+        colWidths.push(
             { wch: 12 }, // Tổng Công
             { wch: 15 }, // Lương
             { wch: 15 }, // Số TK
             { wch: 20 }  // Ngân hàng
-        ];
+        );
+        ws['!cols'] = colWidths;
 
         XLSX.utils.book_append_sheet(wb, ws, 'Bảng Lương');
 
@@ -987,10 +1032,15 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                     <tr>
                                         <th className="p-4 font-semibold text-slate-700 print:text-black">Công Nhật</th>
                                         <th className="p-4 font-semibold text-slate-700 print:text-black">Công Trình</th>
+                                        {dateColumns.map(date => (
+                                            <th key={date} className="p-2 font-semibold text-slate-700 text-center print:text-black print:text-xs">
+                                                <div className="text-xs print:text-[10px]">{formatShortDate(date)}</div>
+                                            </th>
+                                        ))}
                                         <th className="p-4 font-semibold text-slate-700 text-center print:text-black">Tổng Công</th>
                                         <th className="p-4 font-semibold text-slate-700 text-right print:text-black">Lương Tuần</th>
-                                        <th className="p-4 font-semibold text-slate-700 print:text-black">Số TK</th>
-                                        <th className="p-4 font-semibold text-slate-700 print:text-black">Ngân hàng</th>
+                                        <th className="p-4 font-semibold text-slate-700 print:text-black print:text-xs">Số TK</th>
+                                        <th className="p-4 font-semibold text-slate-700 print:text-black print:text-xs">Ngân hàng</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 print:divide-slate-300">
@@ -1012,7 +1062,7 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                                 // Project header row (only in print)
                                                 rows.push(
                                                     <tr key={`header-${projectName}`} className="hidden print:table-row bg-slate-200">
-                                                        <td colSpan={6} className="p-3 font-bold text-black text-center uppercase border-t-2 border-black">
+                                                        <td colSpan={dateColumns.length + 6} className="p-3 font-bold text-black text-center uppercase border-t-2 border-black">
                                                             Công trình: {projectName}
                                                         </td>
                                                     </tr>
@@ -1020,14 +1070,13 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
 
                                                 // Worker rows
                                                 items.forEach(item => {
-                                                    const sortedDetails = [...item.details].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
                                                     rows.push(
                                                         <tr key={item.worker.id} className="hover:bg-slate-50 print:hover:bg-transparent">
                                                             <td className="p-4">
                                                                 <div className="font-medium text-slate-800 print:text-black">{item.worker.name}</div>
                                                                 <div className="text-xs text-slate-500 print:text-gray-600">{item.worker.role}</div>
                                                             </td>
-                                                            <td className="p-4 text-sm text-slate-600 print:text-black">
+                                                            <td className="p-4 text-sm text-slate-600 print:text-black print:text-xs">
                                                                 {item.projectNames.map((name, idx) => (
                                                                     <div key={idx} className="flex items-center">
                                                                         <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2 print:hidden"></span>
@@ -1035,23 +1084,26 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                                                     </div>
                                                                 ))}
                                                             </td>
-                                                            <td className="p-4 text-center align-top">
-                                                                <div className="flex flex-col items-center">
-                                                                    <span className="font-bold text-blue-700 text-lg print:text-black">
-                                                                        {item.totalShifts}
-                                                                    </span>
-                                                                    <div className="flex flex-wrap justify-center gap-2 mt-1 max-w-[250px] print:hidden">
-                                                                        {sortedDetails.map((d, i) => (
-                                                                            <span key={i} className="text-[10px] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 whitespace-nowrap">
-                                                                                {formatShortDate(d.date)}: <span className="text-base font-bold">{d.shifts}</span>
-                                                                            </span>
-                                                                        ))}
-                                                                    </div>
-                                                                </div>
+                                                            {dateColumns.map(date => {
+                                                                const dayRecord = item.details.find(d => d.date === date);
+                                                                return (
+                                                                    <td key={date} className="p-2 text-center print:text-xs">
+                                                                        {dayRecord ? (
+                                                                            <span className="font-bold text-blue-600 print:text-black">{dayRecord.shifts}</span>
+                                                                        ) : (
+                                                                            <span className="text-slate-300 print:text-gray-400">-</span>
+                                                                        )}
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                            <td className="p-4 text-center">
+                                                                <span className="font-bold text-blue-700 text-lg print:text-black print:text-base">
+                                                                    {item.totalShifts}
+                                                                </span>
                                                             </td>
                                                             <td className="p-4 text-right font-bold text-emerald-600 print:text-black">{formatCurrency(item.totalAmount)}</td>
-                                                            <td className="p-4 text-sm text-slate-600 print:text-black">{item.worker.bankAccount || "Chưa cập nhật"}</td>
-                                                            <td className="p-4 text-sm text-slate-600 print:text-black">{item.worker.bankName || "Chưa cập nhật"}</td>
+                                                            <td className="p-4 text-sm text-slate-600 print:text-black print:text-xs">{item.worker.bankAccount || "Chưa cập nhật"}</td>
+                                                            <td className="p-4 text-sm text-slate-600 print:text-black print:text-xs">{item.worker.bankName || "Chưa cập nhật"}</td>
                                                         </tr>
                                                     );
                                                 });
@@ -1060,7 +1112,7 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                                 const subtotal = items.reduce((sum, item) => sum + item.totalAmount, 0);
                                                 rows.push(
                                                     <tr key={`subtotal-${projectName}`} className="hidden print:table-row bg-slate-100">
-                                                        <td colSpan={5} className="p-3 text-right font-bold text-black">
+                                                        <td colSpan={dateColumns.length + 4} className="p-3 text-right font-bold text-black">
                                                             Subtotal ({projectName}):
                                                         </td>
                                                         <td className="p-3 text-right font-bold text-black">
@@ -1074,14 +1126,13 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                         } else {
                                             // Single project - no grouping needed
                                             return weeklyData.map(item => {
-                                                const sortedDetails = [...item.details].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
                                                 return (
                                                     <tr key={item.worker.id} className="hover:bg-slate-50 print:hover:bg-transparent">
                                                         <td className="p-4">
                                                             <div className="font-medium text-slate-800 print:text-black">{item.worker.name}</div>
                                                             <div className="text-xs text-slate-500 print:text-gray-600">{item.worker.role}</div>
                                                         </td>
-                                                        <td className="p-4 text-sm text-slate-600 print:text-black">
+                                                        <td className="p-4 text-sm text-slate-600 print:text-black print:text-xs">
                                                             {item.projectNames.map((name, idx) => (
                                                                 <div key={idx} className="flex items-center">
                                                                     <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2 print:hidden"></span>
@@ -1089,42 +1140,47 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                                                 </div>
                                                             ))}
                                                         </td>
-                                                        <td className="p-4 text-center align-top">
-                                                            <div className="flex flex-col items-center">
-                                                                <span className="font-bold text-blue-700 text-lg print:text-black">
-                                                                    {item.totalShifts}
-                                                                </span>
-                                                                <div className="flex flex-wrap justify-center gap-2 mt-1 max-w-[250px] print:hidden">
-                                                                    {sortedDetails.map((d, i) => (
-                                                                        <span key={i} className="text-[10px] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 whitespace-nowrap">
-                                                                            {formatShortDate(d.date)}: <span className="text-base font-bold">{d.shifts}</span>
-                                                                        </span>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
+                                                        {dateColumns.map(date => {
+                                                            const dayRecord = item.details.find(d => d.date === date);
+                                                            return (
+                                                                <td key={date} className="p-2 text-center print:text-xs">
+                                                                    {dayRecord ? (
+                                                                        <span className="font-bold text-blue-600 print:text-black">{dayRecord.shifts}</span>
+                                                                    ) : (
+                                                                        <span className="text-slate-300 print:text-gray-400">-</span>
+                                                                    )}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                        <td className="p-4 text-center">
+                                                            <span className="font-bold text-blue-700 text-lg print:text-black print:text-base">
+                                                                {item.totalShifts}
+                                                            </span>
                                                         </td>
                                                         <td className="p-4 text-right font-bold text-emerald-600 print:text-black">{formatCurrency(item.totalAmount)}</td>
-                                                        <td className="p-4 text-sm text-slate-600 print:text-black">{item.worker.bankAccount || "Chưa cập nhật"}</td>
-                                                        <td className="p-4 text-sm text-slate-600 print:text-black">{item.worker.bankName || "Chưa cập nhật"}</td>
+                                                        <td className="p-4 text-sm text-slate-600 print:text-black print:text-xs">{item.worker.bankAccount || "Chưa cập nhật"}</td>
+                                                        <td className="p-4 text-sm text-slate-600 print:text-black print:text-xs">{item.worker.bankName || "Chưa cập nhật"}</td>
                                                     </tr>
                                                 );
                                             });
                                         }
                                     })() : (
                                         <tr>
-                                            <td colSpan={6} className="p-8 text-center text-slate-400">
+                                            <td colSpan={dateColumns.length + 6} className="p-8 text-center text-slate-400">
                                                 {filterProjectId ? 'Không có dữ liệu cho công trình này trong tuần' : 'Không có dữ liệu cho tuần này'}
                                             </td>
                                         </tr>
                                     )}
                                 </tbody>
-                                <tfoot className="bg-slate-50 font-semibold text-slate-800 print:bg-gray-100 print:border-t print:border-black">
-                                    <tr>
-                                        <td colSpan={5} className="p-4 text-right">Tổng Cộng:</td>
-                                        <td className="p-4 text-right text-emerald-700 print:text-black">{formatCurrency(totalPayout)}</td>
-                                    </tr>
-                                </tfoot>
                             </table>
+                        </div>
+                    </div>
+
+                    {/* Prominent Total Section for Print/Export - Below table, above signatures */}
+                    <div className="hidden print:block bg-slate-50 border-2 border-black p-6 rounded-lg">
+                        <div className="text-center">
+                            <p className="text-xl font-bold text-black mb-2 uppercase">Tổng Cộng</p>
+                            <p className="text-3xl font-bold text-black">{formatCurrency(totalPayout)}</p>
                         </div>
                     </div>
                 </div>
@@ -1156,7 +1212,6 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                         <p className="text-indigo-100 text-sm mb-6">
                             Sử dụng AI để phân tích dữ liệu bảng lương, tìm ra các bất thường và tối ưu chi phí.
                         </p>
-                        <p className="text-slate-600 text-sm mt-2">CÔNG TY TNHH XD GT T&T TP.HCM</p>
                         <button
                             onClick={handleAnalyze}
                             disabled={analyzing || weeklyData.length === 0}
