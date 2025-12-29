@@ -1129,6 +1129,24 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                     </div>
                 </div>
 
+                {/* Signature Section for PDF */}
+                <div className="hidden print:block mt-12 mb-8">
+                    <div className="grid grid-cols-3 gap-8 text-center">
+                        <div>
+                            <p className="font-bold text-sm mb-16">Người lập bảng</p>
+                            <p className="text-sm italic">(Ký, ghi rõ họ tên)</p>
+                        </div>
+                        <div>
+                            <p className="font-bold text-sm mb-16">Phòng Kế toán</p>
+                            <p className="text-sm italic">(Ký, ghi rõ họ tên)</p>
+                        </div>
+                        <div>
+                            <p className="font-bold text-sm mb-16">Ban Lãnh đạo phê duyệt</p>
+                            <p className="text-sm italic">(Ký, đóng dấu)</p>
+                        </div>
+                    </div>
+                </div>
+
                 <div className="space-y-6 print:hidden">
                     <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl p-6 text-white shadow-lg">
                         <div className="flex items-center mb-4">
@@ -1505,6 +1523,7 @@ const ManageWorkers = ({ workers, projects, onAdd, onDelete, onUpdate }: any) =>
                             <option>Phụ Hồ</option>
                             <option>Kỹ Sư</option>
                             <option>Bảo Vệ</option>
+                            <option>Giữ kho</option>
                         </select>
                         <select
                             className="w-full p-2 border rounded"
@@ -1569,6 +1588,8 @@ const ManageWorkers = ({ workers, projects, onAdd, onDelete, onUpdate }: any) =>
                                 <th className="p-4 text-left">Tên & Liên Hệ</th>
                                 <th className="p-4 text-left">Công Trình Hiện Tại</th>
                                 <th className="p-4 text-left">Vai Trò</th>
+                                <th className="p-4 text-right">Giá 1C</th>
+                                <th className="p-4 text-right">Giá 2C</th>
                                 <th className="p-4 text-right">Thao Tác</th>
                             </tr>
                         </thead>
@@ -1592,6 +1613,12 @@ const ManageWorkers = ({ workers, projects, onAdd, onDelete, onUpdate }: any) =>
                                             </div>
                                         </td>
                                         <td className="p-4 text-slate-500">{w.role}</td>
+                                        <td className="p-4 text-right text-sm">
+                                            <span className="text-blue-600 font-medium">{w.rate1Cong ? formatCurrency(w.rate1Cong) : '-'}</span>
+                                        </td>
+                                        <td className="p-4 text-right text-sm">
+                                            <span className="text-indigo-600 font-medium">{w.rate2Cong ? formatCurrency(w.rate2Cong) : '-'}</span>
+                                        </td>
                                         <td className="p-4 text-right">
                                             <div className="flex justify-end gap-2">
                                                 <button onClick={() => handleEdit(w)} className="text-blue-600 hover:bg-blue-50 p-2 rounded">
