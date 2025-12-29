@@ -2,7 +2,9 @@ export interface Worker {
   id: string;
   name: string;
   role: string; // Thợ chính, phụ hồ, v.v.
-  dailyRate: number; // Lương cơ bản theo ngày (1 công)
+  dailyRate: number; // Lương cơ bản theo ngày (1 công) - deprecated, use rate1Cong
+  rate1Cong?: number; // Giá cho 1 công
+  rate2Cong?: number; // Giá cho 2 công
   currentProjectId?: string; // ID công trình đang phụ trách
   identityCardNumber?: string; // Số CCCD
   phone?: string;
@@ -15,8 +17,6 @@ export interface Project {
   name: string;
   address: string;
   status: 'active' | 'completed';
-  standardRate?: number; // Giá mặc định cho 1 công tại công trình này
-  doubleRate?: number;   // Giá trọn gói cho 2 công (nếu khác biệt)
 }
 
 export interface TimeRecord {
@@ -43,19 +43,19 @@ export interface Transaction {
 export type UserRole = 'admin' | 'user';
 
 export interface User {
-    id: string;
-    username: string;
-    name: string;
-    role: UserRole;
+  id: string;
+  username: string;
+  name: string;
+  role: UserRole;
 }
 
 export interface ActivityLog {
-    id: string;
-    userId: string;
-    userName: string;
-    action: string; // e.g., "Chấm công", "Thêm nhân viên"
-    details: string; // e.g., "Chấm công cho 3 người ngày 2023-10-20"
-    timestamp: string;
+  id: string;
+  userId: string;
+  userName: string;
+  action: string; // e.g., "Chấm công", "Thêm nhân viên"
+  details: string; // e.g., "Chấm công cho 3 người ngày 2023-10-20"
+  timestamp: string;
 }
 
 export type ViewMode = 'dashboard' | 'timesheet' | 'payroll' | 'debt' | 'workers' | 'projects' | 'logs' | 'backup';

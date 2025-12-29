@@ -3,45 +3,49 @@ import { Worker, Project, TimeRecord, ViewMode, WeeklyPayrollItem, Transaction, 
 import { MOCK_USERS } from './constants'; // Only keeping Users for Auth simulation
 import { analyzePayroll } from './services/geminiService';
 import { api } from './services/api';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 import {
-  LayoutDashboard,
-  Users,
-  HardHat,
-  CalendarClock,
-  Banknote,
-  Menu,
-  X,
-  Plus,
-  Trash2,
-  BrainCircuit,
-  ChevronLeft,
-  ChevronRight,
-  Save,
-  Search,
-  Filter,
-  Wallet,
-  ArrowRightLeft,
-  Calendar,
-  Briefcase,
-  IdCard,
-  Printer,
-  FileDown,
-  LogOut,
-  History,
-  Lock,
-  Settings,
-  Database,
-  Upload,
-  Download,
-  AlertTriangle,
-  Edit,
-  Check,
-  XCircle,
-  Undo2,
-  Info,
-  Loader2
+    LayoutDashboard,
+    Users,
+    HardHat,
+    CalendarClock,
+    Banknote,
+    Menu,
+    X,
+    Plus,
+    Trash2,
+    BrainCircuit,
+    ChevronLeft,
+    ChevronRight,
+    Save,
+    Search,
+    Filter,
+    Wallet,
+    ArrowRightLeft,
+    Calendar,
+    Briefcase,
+    IdCard,
+    Printer,
+    FileDown,
+    LogOut,
+    History,
+    Lock,
+    Settings,
+    Database,
+    Upload,
+    Download,
+    AlertTriangle,
+    Edit,
+    Check,
+    XCircle,
+    Undo2,
+    Info,
+    Loader2,
+    FileSpreadsheet
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
+
 
 // --- Utility Functions ---
 
@@ -52,16 +56,16 @@ const generateId = () => {
 
 // Calculate the End of the payroll week (Thursday) based on a selected date
 const getThursdayOfWeek = (date: Date) => {
-  const d = new Date(date);
-  const day = d.getDay(); // 0 (Sun) ... 4 (Thu) ... 6 (Sat)
-  
-  let diff = 4 - day;
-  if (diff < 0) {
-      diff += 7; // If it's Fri (5) or Sat (6), go to next week's Thursday
-  }
-  
-  d.setDate(d.getDate() + diff);
-  return d;
+    const d = new Date(date);
+    const day = d.getDay(); // 0 (Sun) ... 4 (Thu) ... 6 (Sat)
+
+    let diff = 4 - day;
+    if (diff < 0) {
+        diff += 7; // If it's Fri (5) or Sat (6), go to next week's Thursday
+    }
+
+    d.setDate(d.getDate() + diff);
+    return d;
 };
 
 const formatDate = (dateStr: string) => {
@@ -92,32 +96,32 @@ const LoadingOverlay = () => (
 
 // New Confirmation Modal Component
 const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel }: { isOpen: boolean, title: string, message: string, onConfirm: () => void, onCancel: () => void }) => {
-  if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full border border-slate-200 transform transition-all scale-100">
-        <div className="flex items-center gap-3 mb-3 text-red-600">
-           <AlertTriangle className="w-6 h-6" />
-           <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full border border-slate-200 transform transition-all scale-100">
+                <div className="flex items-center gap-3 mb-3 text-red-600">
+                    <AlertTriangle className="w-6 h-6" />
+                    <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+                </div>
+                <p className="text-slate-600 mb-6 leading-relaxed">{message}</p>
+                <div className="flex justify-end gap-3">
+                    <button
+                        onClick={onCancel}
+                        className="px-4 py-2 text-slate-700 font-medium hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                        Hủy bỏ
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        className="px-4 py-2 bg-red-600 text-white font-medium hover:bg-red-700 rounded-lg shadow-sm transition-colors flex items-center"
+                    >
+                        <Trash2 className="w-4 h-4 mr-2" /> Xóa ngay
+                    </button>
+                </div>
+            </div>
         </div>
-        <p className="text-slate-600 mb-6 leading-relaxed">{message}</p>
-        <div className="flex justify-end gap-3">
-          <button 
-            onClick={onCancel} 
-            className="px-4 py-2 text-slate-700 font-medium hover:bg-slate-100 rounded-lg transition-colors"
-          >
-            Hủy bỏ
-          </button>
-          <button 
-            onClick={onConfirm} 
-            className="px-4 py-2 bg-red-600 text-white font-medium hover:bg-red-700 rounded-lg shadow-sm transition-colors flex items-center"
-          >
-            <Trash2 className="w-4 h-4 mr-2" /> Xóa ngay
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
@@ -128,12 +132,12 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
         const user = MOCK_USERS.find(u => u.username === username);
-        
+
         if (user) {
             let isValid = false;
             if (user.username === 'admin' && password === 'Tuan123456@') isValid = true;
             else if ((user.username === 'luc' || user.username === 'du') && password === '123456') isValid = true;
-            
+
             if (isValid) {
                 onLogin(user);
             } else {
@@ -154,12 +158,12 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
                     <h1 className="text-2xl font-bold text-slate-800">Đăng Nhập Hệ Thống</h1>
                     <p className="text-slate-500 mt-2">Chấm công công nhật T&T</p>
                 </div>
-                
+
                 <form onSubmit={handleLogin} className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Tên đăng nhập</label>
-                        <select 
-                            value={username} 
+                        <select
+                            value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                         >
@@ -171,8 +175,8 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu</label>
-                        <input 
-                            type="password" 
+                        <input
+                            type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="Nhập mật khẩu"
@@ -180,8 +184,8 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
                         />
                     </div>
                     {error && <div className="text-red-500 text-sm bg-red-50 p-2 rounded">{error}</div>}
-                    <button 
-                        type="submit" 
+                    <button
+                        type="submit"
                         className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-sm"
                     >
                         Đăng Nhập
@@ -196,208 +200,207 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
 };
 
 const Sidebar = ({ currentView, setView, mobileOpen, setMobileOpen, currentUser, onLogout }: {
-  currentView: ViewMode,
-  setView: (v: ViewMode) => void,
-  mobileOpen: boolean,
-  setMobileOpen: (v: boolean) => void,
-  currentUser: User,
-  onLogout: () => void
+    currentView: ViewMode,
+    setView: (v: ViewMode) => void,
+    mobileOpen: boolean,
+    setMobileOpen: (v: boolean) => void,
+    currentUser: User,
+    onLogout: () => void
 }) => {
-  const menuItems = [
-    { id: 'dashboard', label: 'Tổng Quan', icon: LayoutDashboard },
-    { id: 'timesheet', label: 'Chấm Công', icon: CalendarClock },
-    { id: 'payroll', label: 'Bảng Lương', icon: Banknote },
-    { id: 'debt', label: 'Công Nợ & Ứng', icon: Wallet },
-    { id: 'workers', label: 'Công Nhật', icon: Users },
-    { id: 'projects', label: 'Công Trình', icon: HardHat },
-  ];
+    const menuItems = [
+        { id: 'dashboard', label: 'Tổng Quan', icon: LayoutDashboard },
+        { id: 'timesheet', label: 'Chấm Công', icon: CalendarClock },
+        { id: 'payroll', label: 'Bảng Lương', icon: Banknote },
+        { id: 'debt', label: 'Công Nợ & Ứng', icon: Wallet },
+        { id: 'workers', label: 'Công Nhật', icon: Users },
+        { id: 'projects', label: 'Công Trình', icon: HardHat },
+    ];
 
-  if (currentUser.role === 'admin') {
-      menuItems.push({ id: 'logs', label: 'Nhật Ký', icon: History });
-      menuItems.push({ id: 'backup', label: 'Sao Lưu & Phục Hồi', icon: Database });
-  }
+    if (currentUser.role === 'admin') {
+        menuItems.push({ id: 'logs', label: 'Nhật Ký', icon: History });
+        menuItems.push({ id: 'backup', label: 'Sao Lưu & Phục Hồi', icon: Database });
+    }
 
-  return (
-    <>
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-20 bg-black/50 lg:hidden print:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
+    return (
+        <>
+            {mobileOpen && (
+                <div
+                    className="fixed inset-0 z-20 bg-black/50 lg:hidden print:hidden"
+                    onClick={() => setMobileOpen(false)}
+                />
+            )}
 
-      <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} print:hidden flex flex-col`}>
-        <div className="flex items-center justify-center h-16 border-b border-slate-800 shrink-0">
-          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">Chấm công T&T</h1>
-        </div>
-        
-        <div className="p-4 border-b border-slate-800 bg-slate-800/50">
-            <div className="flex items-center">
-                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg">
-                    {currentUser.username.charAt(0).toUpperCase()}
+            <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} print:hidden flex flex-col`}>
+                <div className="flex items-center justify-center h-16 border-b border-slate-800 shrink-0">
+                    <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">Chấm công T&T</h1>
                 </div>
-                <div className="ml-3 overflow-hidden">
-                    <p className="text-sm font-medium text-white truncate">{currentUser.name}</p>
-                    <p className="text-xs text-slate-400 capitalize">{currentUser.role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}</p>
+
+                <div className="p-4 border-b border-slate-800 bg-slate-800/50">
+                    <div className="flex items-center">
+                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg">
+                            {currentUser.username.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="ml-3 overflow-hidden">
+                            <p className="text-sm font-medium text-white truncate">{currentUser.name}</p>
+                            <p className="text-xs text-slate-400 capitalize">{currentUser.role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
+                    {menuItems.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                            <button
+                                key={item.id}
+                                onClick={() => {
+                                    setView(item.id as ViewMode);
+                                    setMobileOpen(false);
+                                }}
+                                className={`flex items-center w-full px-4 py-3 rounded-lg transition-colors ${currentView === item.id
+                                    ? 'bg-blue-600 text-white'
+                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                                    }`}
+                            >
+                                <Icon className="w-5 h-5 mr-3" />
+                                <span className="font-medium">{item.label}</span>
+                            </button>
+                        );
+                    })}
+                </nav>
+
+                <div className="p-4 border-t border-slate-800 shrink-0">
+                    <button
+                        onClick={onLogout}
+                        className="flex items-center w-full px-4 py-3 rounded-lg text-slate-400 hover:bg-red-900/20 hover:text-red-400 transition-colors"
+                    >
+                        <LogOut className="w-5 h-5 mr-3" />
+                        <span className="font-medium">Đăng Xuất</span>
+                    </button>
                 </div>
             </div>
-        </div>
-
-        <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setView(item.id as ViewMode);
-                  setMobileOpen(false);
-                }}
-                className={`flex items-center w-full px-4 py-3 rounded-lg transition-colors ${
-                  currentView === item.id
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <Icon className="w-5 h-5 mr-3" />
-                <span className="font-medium">{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="p-4 border-t border-slate-800 shrink-0">
-            <button 
-                onClick={onLogout}
-                className="flex items-center w-full px-4 py-3 rounded-lg text-slate-400 hover:bg-red-900/20 hover:text-red-400 transition-colors"
-            >
-                <LogOut className="w-5 h-5 mr-3" />
-                <span className="font-medium">Đăng Xuất</span>
-            </button>
-        </div>
-      </div>
-    </>
-  );
+        </>
+    );
 };
 
 const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    return (
-      <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-lg text-sm z-50">
-        <p className="font-bold text-slate-700 mb-2 border-b border-slate-100 pb-1">{label}</p>
-        <p className="text-blue-600 font-bold mb-2">
-          Tổng: {data.shifts} công
-        </p>
-        {data.details && Object.keys(data.details).length > 0 && (
-          <div className="space-y-1">
-             <p className="text-xs font-semibold text-slate-400 uppercase">Chi tiết:</p>
-             {Object.entries(data.details).map(([pName, count]: [string, any]) => (
-               <div key={pName} className="flex justify-between gap-6 text-xs text-slate-600">
-                  <span className="truncate max-w-[150px]">{pName}:</span>
-                  <span className="font-medium">{count}</span>
-               </div>
-             ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-  return null;
+    if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        return (
+            <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-lg text-sm z-50">
+                <p className="font-bold text-slate-700 mb-2 border-b border-slate-100 pb-1">{label}</p>
+                <p className="text-blue-600 font-bold mb-2">
+                    Tổng: {data.shifts} công
+                </p>
+                {data.details && Object.keys(data.details).length > 0 && (
+                    <div className="space-y-1">
+                        <p className="text-xs font-semibold text-slate-400 uppercase">Chi tiết:</p>
+                        {Object.entries(data.details).map(([pName, count]: [string, any]) => (
+                            <div key={pName} className="flex justify-between gap-6 text-xs text-slate-600">
+                                <span className="truncate max-w-[150px]">{pName}:</span>
+                                <span className="font-medium">{count}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+    return null;
 };
 
 const Dashboard = ({ workers, projects, records }: { workers: Worker[], projects: Project[], records: TimeRecord[] }) => {
-  const activeProjects = projects.filter(p => p.status === 'active').length;
-  const totalShiftsRecorded = records.length;
-  
-  const chartData = useMemo(() => {
-     const data: any[] = [];
-     const today = new Date();
-     for(let i=6; i>=0; i--) {
-        const d = new Date(today);
-        d.setDate(d.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
-        const dayRecords = records.filter(r => r.date === dateStr);
-        const totalShifts = dayRecords.reduce((acc, curr) => acc + curr.shifts, 0);
-        
-        // Group by project
-        const details: Record<string, number> = {};
-        dayRecords.forEach(r => {
-             const project = projects.find(p => p.id === r.projectId);
-             const pName = project ? project.name : 'Khác';
-             details[pName] = (details[pName] || 0) + r.shifts;
-        });
+    const activeProjects = projects.filter(p => p.status === 'active').length;
+    const totalShiftsRecorded = records.length;
 
-        data.push({
-            name: `${d.getDate()}/${d.getMonth()+1}`,
-            shifts: totalShifts,
-            details: details
-        });
-     }
-     return data;
-  }, [records, projects]);
+    const chartData = useMemo(() => {
+        const data: any[] = [];
+        const today = new Date();
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(today);
+            d.setDate(d.getDate() - i);
+            const dateStr = d.toISOString().split('T')[0];
+            const dayRecords = records.filter(r => r.date === dateStr);
+            const totalShifts = dayRecords.reduce((acc, curr) => acc + curr.shifts, 0);
 
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-slate-800">Tổng Quan</h2>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-500">Tổng Công Nhật</p>
-              <p className="text-3xl font-bold text-slate-800 mt-1">{workers.length}</p>
-            </div>
-            <div className="p-3 bg-blue-50 rounded-lg">
-              <Users className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-500">Công Trình Đang Chạy</p>
-              <p className="text-3xl font-bold text-slate-800 mt-1">{activeProjects}</p>
-            </div>
-            <div className="p-3 bg-orange-50 rounded-lg">
-              <HardHat className="w-6 h-6 text-orange-600" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-500">Lượt Chấm Công</p>
-              <p className="text-3xl font-bold text-slate-800 mt-1">{totalShiftsRecorded}</p>
-            </div>
-            <div className="p-3 bg-emerald-50 rounded-lg">
-              <CalendarClock className="w-6 h-6 text-emerald-600" />
-            </div>
-          </div>
-        </div>
-      </div>
+            // Group by project
+            const details: Record<string, number> = {};
+            dayRecords.forEach(r => {
+                const project = projects.find(p => p.id === r.projectId);
+                const pName = project ? project.name : 'Khác';
+                details[pName] = (details[pName] || 0) + r.shifts;
+            });
 
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <h3 className="text-lg font-semibold mb-4 text-slate-800">Biểu Đồ Chấm Công (7 Ngày Qua)</h3>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip content={<CustomTooltip />} cursor={{fill: 'transparent'}} />
-                <Bar dataKey="shifts" name="Số công" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-      </div>
-    </div>
-  );
+            data.push({
+                name: `${d.getDate()}/${d.getMonth() + 1}`,
+                shifts: totalShifts,
+                details: details
+            });
+        }
+        return data;
+    }, [records, projects]);
+
+    return (
+        <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-slate-800">Tổng Quan</h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium text-slate-500">Tổng Công Nhật</p>
+                            <p className="text-3xl font-bold text-slate-800 mt-1">{workers.length}</p>
+                        </div>
+                        <div className="p-3 bg-blue-50 rounded-lg">
+                            <Users className="w-6 h-6 text-blue-600" />
+                        </div>
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium text-slate-500">Công Trình Đang Chạy</p>
+                            <p className="text-3xl font-bold text-slate-800 mt-1">{activeProjects}</p>
+                        </div>
+                        <div className="p-3 bg-orange-50 rounded-lg">
+                            <HardHat className="w-6 h-6 text-orange-600" />
+                        </div>
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium text-slate-500">Lượt Chấm Công</p>
+                            <p className="text-3xl font-bold text-slate-800 mt-1">{totalShiftsRecorded}</p>
+                        </div>
+                        <div className="p-3 bg-emerald-50 rounded-lg">
+                            <CalendarClock className="w-6 h-6 text-emerald-600" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 className="text-lg font-semibold mb-4 text-slate-800">Biểu Đồ Chấm Công (7 Ngày Qua)</h3>
+                <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="name" />
+                            <YAxis />
+                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
+                            <Bar dataKey="shifts" name="Số công" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+        </div>
+    );
 };
 
-const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, onDeleteRecord }: { 
-    workers: Worker[], 
-    projects: Project[], 
+const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, onDeleteRecord }: {
+    workers: Worker[],
+    projects: Project[],
     records: TimeRecord[],
     onAddRecord: (records: TimeRecord[]) => void,
     onUpdateRecord: (id: string, shifts: number, rate: number) => void,
@@ -406,7 +409,7 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [projectId, setProjectId] = useState(projects.length > 0 ? projects[0].id : '');
     const [filterByProject, setFilterByProject] = useState(true);
-    
+
     // Deletion Modal State
     const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -414,7 +417,7 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
 
     const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
     const [editShiftValue, setEditShiftValue] = useState<number>(0);
-    const [editRateValue, setEditRateValue] = useState<number>(0); 
+    const [editRateValue, setEditRateValue] = useState<number>(0);
 
     const filteredWorkers = useMemo(() => {
         if (!filterByProject || !projectId) return workers;
@@ -428,25 +431,29 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
 
     const currentProjectName = projects.find(p => p.id === projectId)?.name || 'Không xác định';
 
-    const calculateRecommendedRate = (currentProjectId: string, shifts: number, defaultWorkerRate: number): number => {
-        const project = projects.find(p => p.id === currentProjectId);
-        if (!project) return defaultWorkerRate;
-        if (shifts === 2 && project.doubleRate) return project.doubleRate / 2;
-        if (project.standardRate) return project.standardRate;
-        return defaultWorkerRate;
+    const calculateRecommendedRate = (currentProjectId: string, shifts: number, worker: Worker): number => {
+        // Use worker's specific pricing if available
+        if (shifts === 2 && worker.rate2Cong) {
+            return worker.rate2Cong / 2; // Per shift rate
+        }
+        if (shifts === 1 && worker.rate1Cong) {
+            return worker.rate1Cong;
+        }
+        // Fallback to dailyRate
+        return worker.dailyRate;
     };
 
     useEffect(() => {
         const initialInputs: any = {};
         workers.forEach(w => {
             const targetProjectId = projectId;
-            const rate = calculateRecommendedRate(targetProjectId, 1, w.dailyRate);
+            const rate = calculateRecommendedRate(targetProjectId, 1, w);
 
-            initialInputs[w.id] = { 
-                shifts: 1, 
+            initialInputs[w.id] = {
+                shifts: 1,
                 customRate: rate,
-                selected: false, 
-                note: '' 
+                selected: false,
+                note: ''
             };
         });
         setInputs(initialInputs);
@@ -459,7 +466,7 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
             if (field === 'shifts') {
                 const worker = workers.find(w => w.id === workerId);
                 if (worker) {
-                    const newRate = calculateRecommendedRate(projectId, Number(value), worker.dailyRate);
+                    const newRate = calculateRecommendedRate(projectId, Number(value), worker);
                     newState.customRate = newRate;
                 }
             }
@@ -472,18 +479,18 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
         filteredWorkers.forEach(worker => {
             const data = inputs[worker.id];
             if (data && data.selected) {
-                 newRecords.push({
+                newRecords.push({
                     id: generateId(),
                     workerId: worker.id,
                     projectId,
                     date,
                     shifts: data.shifts,
-                    rateUsed: data.customRate, 
+                    rateUsed: data.customRate,
                     note: data.note
                 });
             }
         });
-        
+
         if (newRecords.length === 0) {
             alert("Vui lòng chọn ít nhất một công nhật để chấm công.");
             return;
@@ -493,7 +500,7 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
         setInputs(prev => {
             const next = { ...prev };
             filteredWorkers.forEach(w => {
-                if(next[w.id]) next[w.id].selected = false;
+                if (next[w.id]) next[w.id].selected = false;
             });
             return next;
         });
@@ -502,7 +509,7 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
     const startEditing = (record: TimeRecord) => {
         setEditingRecordId(record.id);
         setEditShiftValue(record.shifts);
-        setEditRateValue(record.rateUsed); 
+        setEditRateValue(record.rateUsed);
     };
 
     const saveEdit = () => {
@@ -521,26 +528,26 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
 
     return (
         <div className="space-y-6">
-            <ConfirmationModal 
-                isOpen={!!deleteId} 
+            <ConfirmationModal
+                isOpen={!!deleteId}
                 title="Xóa Chấm Công"
                 message="Bạn có chắc chắn muốn xóa bản ghi chấm công này không? Hành động này không thể hoàn tác."
                 onConfirm={confirmDelete}
                 onCancel={() => setDeleteId(null)}
             />
 
-             <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <h2 className="text-2xl font-bold text-slate-800">Chấm Công Hàng Ngày</h2>
                     <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                        <input 
-                            type="date" 
-                            value={date} 
+                        <input
+                            type="date"
+                            value={date}
                             onChange={(e) => setDate(e.target.value)}
                             className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                         />
-                        <select 
-                            value={projectId} 
+                        <select
+                            value={projectId}
                             onChange={(e) => setProjectId(e.target.value)}
                             className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                         >
@@ -550,12 +557,12 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
                         </select>
                     </div>
                 </div>
-                
+
                 <div className="flex items-center">
                     <label className="flex items-center cursor-pointer select-none">
-                        <input 
-                            type="checkbox" 
-                            className="w-4 h-4 text-blue-600 rounded mr-2" 
+                        <input
+                            type="checkbox"
+                            className="w-4 h-4 text-blue-600 rounded mr-2"
                             checked={filterByProject}
                             onChange={(e) => setFilterByProject(e.target.checked)}
                         />
@@ -573,7 +580,7 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
                     <table className="w-full text-left">
                         <thead className="bg-slate-50 border-b border-slate-200">
                             <tr>
-                                <th className="p-4 w-12"><input type="checkbox" onChange={(e) => { const checked = e.target.checked; setInputs(prev => { const next = { ...prev }; filteredWorkers.forEach(w => { if(next[w.id]) next[w.id].selected = checked; }); return next; }); }} /></th>
+                                <th className="p-4 w-12"><input type="checkbox" onChange={(e) => { const checked = e.target.checked; setInputs(prev => { const next = { ...prev }; filteredWorkers.forEach(w => { if (next[w.id]) next[w.id].selected = checked; }); return next; }); }} /></th>
                                 <th className="p-4 font-semibold text-slate-700">Công Nhật</th>
                                 <th className="p-4 font-semibold text-slate-700">Công (Shift)</th>
                                 <th className="p-4 font-semibold text-slate-700">Đơn giá</th>
@@ -614,7 +621,7 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in slide-in-from-bottom-2">
                 <div className="p-4 bg-orange-50 border-b border-orange-200 flex justify-between items-center">
                     <div className="font-bold text-orange-800 flex items-center">
-                        <History className="w-4 h-4 mr-2" /> 
+                        <History className="w-4 h-4 mr-2" />
                         <span>Danh sách đã chấm hôm nay ({formatShortDate(date)}) - <span className="text-blue-600">{currentProjectName}</span></span>
                     </div>
                 </div>
@@ -637,7 +644,7 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
                                         <td className="p-4 font-medium text-slate-800">{worker?.name}</td>
                                         <td className="p-4">
                                             {isEditing ? (
-                                                <input 
+                                                <input
                                                     type="number" step="0.5" className="w-20 px-2 py-1 border border-blue-400 rounded focus:ring-2 focus:ring-blue-200 outline-none"
                                                     value={editShiftValue} onChange={e => setEditShiftValue(Number(e.target.value))}
                                                     autoFocus
@@ -648,7 +655,7 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
                                         </td>
                                         <td className="p-4 text-right text-slate-500">
                                             {isEditing ? (
-                                                <input 
+                                                <input
                                                     type="number" step="10000" className="w-28 px-2 py-1 border border-blue-400 rounded focus:ring-2 focus:ring-blue-200 outline-none text-right"
                                                     value={editRateValue} onChange={e => setEditRateValue(Number(e.target.value))}
                                                 />
@@ -665,12 +672,12 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
                                             ) : (
                                                 <div className="flex justify-end gap-2">
                                                     <button onClick={() => startEditing(record)} className="p-2 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"><Edit className="w-4 h-4" /></button>
-                                                    <button 
-                                                        type="button" 
-                                                        onClick={(e) => { 
-                                                            e.stopPropagation(); 
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
                                                             setDeleteId(record.id);
-                                                        }} 
+                                                        }}
                                                         className="p-2 bg-red-50 text-red-600 rounded hover:bg-red-100 cursor-pointer"
                                                     >
                                                         <Trash2 className="w-4 h-4" />
@@ -696,16 +703,16 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
         const d = getThursdayOfWeek(new Date());
         return d.toISOString().split('T')[0];
     });
-    
+
     // Filter state
     const [filterProjectId, setFilterProjectId] = useState('');
-    
+
     const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
     const [analyzing, setAnalyzing] = useState(false);
 
     const weekStart = useMemo(() => {
         const d = new Date(weekEnd);
-        d.setDate(d.getDate() - 6); 
+        d.setDate(d.getDate() - 6);
         return d.toISOString().split('T')[0];
     }, [weekEnd]);
 
@@ -719,16 +726,16 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
 
     const weeklyData = useMemo(() => {
         let filteredRecords = records.filter(r => r.date >= weekStart && r.date <= weekEnd);
-        
+
         if (filterProjectId) {
             filteredRecords = filteredRecords.filter(r => r.projectId === filterProjectId);
         }
-        
+
         const items: WeeklyPayrollItem[] = workers.map(w => {
             const workerRecords = filteredRecords.filter(r => r.workerId === w.id);
             const totalShifts = workerRecords.reduce((sum, r) => sum + r.shifts, 0);
             const totalAmount = workerRecords.reduce((sum, r) => sum + (r.shifts * r.rateUsed), 0);
-            
+
             const projectNames = Array.from(new Set(workerRecords.map(r => {
                 const p = projects.find(proj => proj.id === r.projectId);
                 return p ? p.name : 'Unknown';
@@ -742,7 +749,7 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                 projectNames
             };
         });
-        
+
         if (!filterProjectId) {
             items.sort((a, b) => {
                 const pA = a.projectNames[0] || '';
@@ -750,7 +757,7 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                 return pA.localeCompare(pB);
             });
         }
-        
+
         return items.filter(i => i.totalShifts > 0);
 
     }, [weekStart, weekEnd, records, workers, projects, filterProjectId]);
@@ -762,6 +769,91 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
         setAnalyzing(false);
     };
 
+    const handleExportExcel = () => {
+        // Group data by project if showing all projects
+        const groupedData: { projectName: string, items: WeeklyPayrollItem[], subtotal: number }[] = [];
+
+        if (!filterProjectId) {
+            // Group by project
+            const projectGroups = new Map<string, WeeklyPayrollItem[]>();
+            weeklyData.forEach(item => {
+                const projectName = item.projectNames[0] || 'Không xác định';
+                if (!projectGroups.has(projectName)) {
+                    projectGroups.set(projectName, []);
+                }
+                projectGroups.get(projectName)!.push(item);
+            });
+
+            projectGroups.forEach((items, projectName) => {
+                const subtotal = items.reduce((sum, item) => sum + item.totalAmount, 0);
+                groupedData.push({ projectName, items, subtotal });
+            });
+        } else {
+            // Single project
+            const projectName = projects.find(p => p.id === filterProjectId)?.name || 'Không xác định';
+            groupedData.push({
+                projectName,
+                items: weeklyData,
+                subtotal: totalPayout
+            });
+        }
+
+        // Create Excel workbook
+        const wb = XLSX.utils.book_new();
+        const wsData: any[] = [];
+
+        // Add title
+        wsData.push(['BẢNG LƯƠNG CÔNG NHẬT']);
+        wsData.push([`Kỳ lương: ${formatDate(weekStart)} - ${formatDate(weekEnd)}`]);
+        wsData.push([]);
+
+        // Add data grouped by project
+        groupedData.forEach((group, groupIdx) => {
+            // Project header
+            wsData.push([`CÔNG TRÌNH: ${group.projectName.toUpperCase()}`]);
+            wsData.push(['Công nhật', 'Tổng Công', 'Lương Tuần', 'Số TK', 'Ngân hàng']);
+
+            // Workers in this project
+            group.items.forEach(item => {
+                wsData.push([
+                    `${item.worker.name} (${item.worker.role})`,
+                    item.totalShifts,
+                    item.totalAmount,
+                    item.worker.bankAccount || 'Chưa cập nhật',
+                    item.worker.bankName || 'Chưa cập nhật'
+                ]);
+            });
+
+            // Subtotal
+            wsData.push(['', '', group.subtotal, '', `Subtotal: ${formatCurrency(group.subtotal)}`]);
+            wsData.push([]);
+        });
+
+        // Grand total
+        wsData.push(['', '', totalPayout, '', `TỔNG CỘNG: ${formatCurrency(totalPayout)}`]);
+
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+        // Set column widths
+        ws['!cols'] = [
+            { wch: 30 }, // Công nhật
+            { wch: 12 }, // Tổng Công
+            { wch: 15 }, // Lương
+            { wch: 15 }, // Số TK
+            { wch: 20 }  // Ngân hàng
+        ];
+
+        XLSX.utils.book_append_sheet(wb, ws, 'Bảng Lương');
+
+        // Generate filename
+        const fileName = `BangLuong_${weekStart}_${weekEnd}.xlsx`;
+
+        // Save file
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        saveAs(data, fileName);
+    };
+
     const totalPayout = weeklyData.reduce((sum, item) => sum + item.totalAmount, 0);
 
     return (
@@ -769,16 +861,24 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
                 <h2 className="text-2xl font-bold text-slate-800">Bảng Lương Theo Tuần</h2>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                     <button
-                        onClick={() => window.print()}
-                        className="flex items-center px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors shadow-sm"
-                    >
-                        <FileDown className="w-4 h-4 mr-2" /> Xuất PDF / In
-                    </button>
-                    
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleExportExcel}
+                            className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+                        >
+                            <FileSpreadsheet className="w-4 h-4 mr-2" /> Xuất Excel
+                        </button>
+                        <button
+                            onClick={() => window.print()}
+                            className="flex items-center px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors shadow-sm"
+                        >
+                            <FileDown className="w-4 h-4 mr-2" /> Xuất PDF / In
+                        </button>
+                    </div>
+
                     <div className="flex flex-wrap items-center gap-2">
-                        <select 
-                            value={filterProjectId} 
+                        <select
+                            value={filterProjectId}
                             onChange={(e) => setFilterProjectId(e.target.value)}
                             className="px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"
                         >
@@ -795,9 +895,9 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                             </div>
                             <div>
                                 <span className="text-[10px] text-slate-500 uppercase font-bold block">Kết thúc (T5)</span>
-                                <input 
-                                    type="date" 
-                                    value={weekEnd} 
+                                <input
+                                    type="date"
+                                    value={weekEnd}
                                     onChange={handleDateChange}
                                     className="outline-none text-sm text-slate-800 bg-transparent font-medium p-0"
                                 />
@@ -808,11 +908,11 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
             </div>
 
             <div className="hidden print:block mb-8 text-center border-b pb-4">
-                 <h1 className="text-2xl font-bold uppercase">Bảng Lương Công Nhật</h1>
-                 <p className="text-slate-800 mt-2 text-lg font-medium">Kỳ lương: {formatDate(weekStart)} - {formatDate(weekEnd)}</p>
-                 <p className="text-slate-900 font-bold mt-1 text-xl uppercase">
-                     Công trình: {filterProjectId ? projects.find(p => p.id === filterProjectId)?.name : 'TẤT CẢ CÔNG TRÌNH'}
-                 </p>
+                <h1 className="text-2xl font-bold uppercase">Bảng Lương Công Nhật</h1>
+                <p className="text-slate-800 mt-2 text-lg font-medium">Kỳ lương: {formatDate(weekStart)} - {formatDate(weekEnd)}</p>
+                <p className="text-slate-900 font-bold mt-1 text-xl uppercase">
+                    Công trình: {filterProjectId ? projects.find(p => p.id === filterProjectId)?.name : 'TẤT CẢ CÔNG TRÌNH'}
+                </p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -826,45 +926,130 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                         <th className="p-4 font-semibold text-slate-700 print:text-black">Công Trình</th>
                                         <th className="p-4 font-semibold text-slate-700 text-center print:text-black">Tổng Công</th>
                                         <th className="p-4 font-semibold text-slate-700 text-right print:text-black">Lương Tuần</th>
+                                        <th className="p-4 font-semibold text-slate-700 print:text-black">Số TK</th>
+                                        <th className="p-4 font-semibold text-slate-700 print:text-black">Ngân hàng</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 print:divide-slate-300">
-                                    {weeklyData.length > 0 ? weeklyData.map(item => {
-                                        const sortedDetails = [...item.details].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-                                        return (
-                                            <tr key={item.worker.id} className="hover:bg-slate-50 print:hover:bg-transparent">
-                                                <td className="p-4">
-                                                    <div className="font-medium text-slate-800 print:text-black">{item.worker.name}</div>
-                                                    <div className="text-xs text-slate-500 print:text-gray-600">{item.worker.role}</div>
-                                                </td>
-                                                <td className="p-4 text-sm text-slate-600 print:text-black">
-                                                    {item.projectNames.map((name, idx) => (
-                                                        <div key={idx} className="flex items-center">
-                                                            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2 print:hidden"></span>
-                                                            {name}
-                                                        </div>
-                                                    ))}
-                                                </td>
-                                                <td className="p-4 text-center align-top">
-                                                    <div className="flex flex-col items-center">
-                                                        <span className="font-bold text-blue-700 text-lg print:text-black">
-                                                            {item.totalShifts}
-                                                        </span>
-                                                        <div className="flex flex-wrap justify-center gap-2 mt-1 max-w-[250px]">
-                                                            {sortedDetails.map((d, i) => (
-                                                                <span key={i} className="text-[10px] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 whitespace-nowrap print:border-slate-400 print:text-black print:text-sm print:font-semibold">
-                                                                    {formatShortDate(d.date)}: <span className="text-base font-bold">{d.shifts}</span>
-                                                                </span>
+                                    {weeklyData.length > 0 ? (() => {
+                                        // Group by project for better PDF organization
+                                        if (!filterProjectId) {
+                                            // Group data by project
+                                            const projectGroups = new Map<string, WeeklyPayrollItem[]>();
+                                            weeklyData.forEach(item => {
+                                                const projectName = item.projectNames[0] || 'Không xác định';
+                                                if (!projectGroups.has(projectName)) {
+                                                    projectGroups.set(projectName, []);
+                                                }
+                                                projectGroups.get(projectName)!.push(item);
+                                            });
+
+                                            const rows: React.ReactNode[] = [];
+                                            projectGroups.forEach((items, projectName) => {
+                                                // Project header row (only in print)
+                                                rows.push(
+                                                    <tr key={`header-${projectName}`} className="hidden print:table-row bg-slate-200">
+                                                        <td colSpan={6} className="p-3 font-bold text-black text-center uppercase border-t-2 border-black">
+                                                            Công trình: {projectName}
+                                                        </td>
+                                                    </tr>
+                                                );
+
+                                                // Worker rows
+                                                items.forEach(item => {
+                                                    const sortedDetails = [...item.details].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                                                    rows.push(
+                                                        <tr key={item.worker.id} className="hover:bg-slate-50 print:hover:bg-transparent">
+                                                            <td className="p-4">
+                                                                <div className="font-medium text-slate-800 print:text-black">{item.worker.name}</div>
+                                                                <div className="text-xs text-slate-500 print:text-gray-600">{item.worker.role}</div>
+                                                            </td>
+                                                            <td className="p-4 text-sm text-slate-600 print:text-black">
+                                                                {item.projectNames.map((name, idx) => (
+                                                                    <div key={idx} className="flex items-center">
+                                                                        <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2 print:hidden"></span>
+                                                                        {name}
+                                                                    </div>
+                                                                ))}
+                                                            </td>
+                                                            <td className="p-4 text-center align-top">
+                                                                <div className="flex flex-col items-center">
+                                                                    <span className="font-bold text-blue-700 text-lg print:text-black">
+                                                                        {item.totalShifts}
+                                                                    </span>
+                                                                    <div className="flex flex-wrap justify-center gap-2 mt-1 max-w-[250px] print:hidden">
+                                                                        {sortedDetails.map((d, i) => (
+                                                                            <span key={i} className="text-[10px] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 whitespace-nowrap">
+                                                                                {formatShortDate(d.date)}: <span className="text-base font-bold">{d.shifts}</span>
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4 text-right font-bold text-emerald-600 print:text-black">{formatCurrency(item.totalAmount)}</td>
+                                                            <td className="p-4 text-sm text-slate-600 print:text-black">{item.worker.bankAccount || "Chưa cập nhật"}</td>
+                                                            <td className="p-4 text-sm text-slate-600 print:text-black">{item.worker.bankName || "Chưa cập nhật"}</td>
+                                                        </tr>
+                                                    );
+                                                });
+
+                                                // Subtotal row (only in print)
+                                                const subtotal = items.reduce((sum, item) => sum + item.totalAmount, 0);
+                                                rows.push(
+                                                    <tr key={`subtotal-${projectName}`} className="hidden print:table-row bg-slate-100">
+                                                        <td colSpan={5} className="p-3 text-right font-bold text-black">
+                                                            Subtotal ({projectName}):
+                                                        </td>
+                                                        <td className="p-3 text-right font-bold text-black">
+                                                            {formatCurrency(subtotal)}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            });
+
+                                            return rows;
+                                        } else {
+                                            // Single project - no grouping needed
+                                            return weeklyData.map(item => {
+                                                const sortedDetails = [...item.details].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                                                return (
+                                                    <tr key={item.worker.id} className="hover:bg-slate-50 print:hover:bg-transparent">
+                                                        <td className="p-4">
+                                                            <div className="font-medium text-slate-800 print:text-black">{item.worker.name}</div>
+                                                            <div className="text-xs text-slate-500 print:text-gray-600">{item.worker.role}</div>
+                                                        </td>
+                                                        <td className="p-4 text-sm text-slate-600 print:text-black">
+                                                            {item.projectNames.map((name, idx) => (
+                                                                <div key={idx} className="flex items-center">
+                                                                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2 print:hidden"></span>
+                                                                    {name}
+                                                                </div>
                                                             ))}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-right font-bold text-emerald-600 print:text-black">{formatCurrency(item.totalAmount)}</td>
-                                            </tr>
-                                        );
-                                    }) : (
+                                                        </td>
+                                                        <td className="p-4 text-center align-top">
+                                                            <div className="flex flex-col items-center">
+                                                                <span className="font-bold text-blue-700 text-lg print:text-black">
+                                                                    {item.totalShifts}
+                                                                </span>
+                                                                <div className="flex flex-wrap justify-center gap-2 mt-1 max-w-[250px] print:hidden">
+                                                                    {sortedDetails.map((d, i) => (
+                                                                        <span key={i} className="text-[10px] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 whitespace-nowrap">
+                                                                            {formatShortDate(d.date)}: <span className="text-base font-bold">{d.shifts}</span>
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4 text-right font-bold text-emerald-600 print:text-black">{formatCurrency(item.totalAmount)}</td>
+                                                        <td className="p-4 text-sm text-slate-600 print:text-black">{item.worker.bankAccount || "Chưa cập nhật"}</td>
+                                                        <td className="p-4 text-sm text-slate-600 print:text-black">{item.worker.bankName || "Chưa cập nhật"}</td>
+                                                    </tr>
+                                                );
+                                            });
+                                        }
+                                    })() : (
                                         <tr>
-                                            <td colSpan={4} className="p-8 text-center text-slate-400">
+                                            <td colSpan={6} className="p-8 text-center text-slate-400">
                                                 {filterProjectId ? 'Không có dữ liệu cho công trình này trong tuần' : 'Không có dữ liệu cho tuần này'}
                                             </td>
                                         </tr>
@@ -872,7 +1057,7 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                 </tbody>
                                 <tfoot className="bg-slate-50 font-semibold text-slate-800 print:bg-gray-100 print:border-t print:border-black">
                                     <tr>
-                                        <td colSpan={3} className="p-4 text-right">Tổng Cộng:</td>
+                                        <td colSpan={5} className="p-4 text-right">Tổng Cộng:</td>
                                         <td className="p-4 text-right text-emerald-700 print:text-black">{formatCurrency(totalPayout)}</td>
                                     </tr>
                                 </tfoot>
@@ -882,7 +1067,7 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                 </div>
 
                 <div className="space-y-6 print:hidden">
-                     <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl p-6 text-white shadow-lg">
+                    <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl p-6 text-white shadow-lg">
                         <div className="flex items-center mb-4">
                             <BrainCircuit className="w-6 h-6 mr-2" />
                             <h3 className="text-lg font-bold">Trợ Lý AI</h3>
@@ -890,32 +1075,32 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                         <p className="text-indigo-100 text-sm mb-6">
                             Sử dụng AI để phân tích dữ liệu bảng lương, tìm ra các bất thường và tối ưu chi phí.
                         </p>
-                        <button 
+                        <button
                             onClick={handleAnalyze}
                             disabled={analyzing || weeklyData.length === 0}
                             className="w-full py-2 bg-white text-indigo-700 font-semibold rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {analyzing ? 'Đang phân tích...' : 'Phân Tích Ngay'}
                         </button>
-                     </div>
+                    </div>
 
-                     {aiAnalysis && (
-                         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                             <h3 className="font-bold text-slate-800 mb-3 border-b pb-2">Kết Quả Phân Tích</h3>
-                             <div className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
-                                 {aiAnalysis}
-                             </div>
-                         </div>
-                     )}
+                    {aiAnalysis && (
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                            <h3 className="font-bold text-slate-800 mb-3 border-b pb-2">Kết Quả Phân Tích</h3>
+                            <div className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
+                                {aiAnalysis}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
     );
 };
 
-const DebtManagement = ({ workers, records, transactions, onAddTransaction, projects }: { 
-    workers: Worker[], 
-    records: TimeRecord[], 
+const DebtManagement = ({ workers, records, transactions, onAddTransaction, projects }: {
+    workers: Worker[],
+    records: TimeRecord[],
     transactions: Transaction[],
     onAddTransaction: (t: Transaction) => void,
     projects: Project[]
@@ -923,7 +1108,7 @@ const DebtManagement = ({ workers, records, transactions, onAddTransaction, proj
     // Keeping DebtManagement same as before
     const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
-    
+
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
     const [filterProjectId, setFilterProjectId] = useState('');
@@ -951,14 +1136,14 @@ const DebtManagement = ({ workers, records, transactions, onAddTransaction, proj
             // Total Salary Earned (Lifetime) - UPDATED TO USE rateUsed
             const workerRecords = records.filter(r => r.workerId === w.id);
             const totalEarned = workerRecords.reduce((sum, r) => sum + (r.shifts * r.rateUsed), 0);
-            
+
             // Total Transactions
             const workerTx = transactions.filter(t => t.workerId === w.id);
             const totalAdvanced = workerTx.filter(t => t.type === 'advance').reduce((sum, t) => sum + t.amount, 0);
             const totalPaid = workerTx.filter(t => t.type === 'payment').reduce((sum, t) => sum + t.amount, 0);
-            
+
             const remainingDebt = totalEarned - (totalAdvanced + totalPaid);
-            
+
             return {
                 worker: w,
                 totalEarned,
@@ -971,7 +1156,7 @@ const DebtManagement = ({ workers, records, transactions, onAddTransaction, proj
 
     const totalCompanyDebt = debtData.reduce((sum, d) => sum + d.remainingDebt, 0);
     const selectedWorker = workers.find(w => w.id === selectedWorkerId);
-    const selectedWorkerTx = selectedWorkerId ? transactions.filter(t => t.workerId === selectedWorkerId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()) : [];
+    const selectedWorkerTx = selectedWorkerId ? transactions.filter(t => t.workerId === selectedWorkerId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) : [];
 
     const handleAdd = async () => {
         if (!selectedWorkerId || !newTxAmount) return;
@@ -994,17 +1179,17 @@ const DebtManagement = ({ workers, records, transactions, onAddTransaction, proj
         <div className="space-y-6">
             <div className="flex justify-between items-center print:hidden">
                 <h2 className="text-2xl font-bold text-slate-800">Quản Lý Công Nợ & Ứng Lương</h2>
-                 <button
+                <button
                     onClick={() => window.print()}
                     className="flex items-center px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors shadow-sm"
                 >
                     <FileDown className="w-4 h-4 mr-2" /> Xuất PDF / In
                 </button>
             </div>
-            
-             <div className="hidden print:block mb-8 text-center">
-                 <h1 className="text-2xl font-bold uppercase">Báo Cáo Công Nợ</h1>
-                 <p className="text-slate-600 mt-2">Ngày lập: {formatDate(new Date().toISOString())}</p>
+
+            <div className="hidden print:block mb-8 text-center">
+                <h1 className="text-2xl font-bold uppercase">Báo Cáo Công Nợ</h1>
+                <p className="text-slate-600 mt-2">Ngày lập: {formatDate(new Date().toISOString())}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 print:hidden">
@@ -1017,17 +1202,17 @@ const DebtManagement = ({ workers, records, transactions, onAddTransaction, proj
             <div className="flex flex-col md:flex-row gap-4 mb-4 print:hidden">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-                    <input 
-                        type="text" 
-                        placeholder="Tìm tên công nhật..." 
+                    <input
+                        type="text"
+                        placeholder="Tìm tên công nhật..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                     />
                 </div>
                 <div className="w-full md:w-64">
-                    <select 
-                        value={filterProjectId} 
+                    <select
+                        value={filterProjectId}
                         onChange={(e) => setFilterProjectId(e.target.value)}
                         className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                     >
@@ -1042,7 +1227,7 @@ const DebtManagement = ({ workers, records, transactions, onAddTransaction, proj
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Master List */}
                 <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden print:col-span-3 print:border-black print:shadow-none">
-                     <div className="overflow-x-auto">
+                    <div className="overflow-x-auto">
                         <table className="w-full text-left">
                             <thead className="bg-slate-50 border-b border-slate-200 print:bg-gray-100 print:border-black">
                                 <tr>
@@ -1072,7 +1257,7 @@ const DebtManagement = ({ workers, records, transactions, onAddTransaction, proj
                                             {formatCurrency(d.remainingDebt)}
                                         </td>
                                         <td className="p-4 text-center print:hidden">
-                                            <button 
+                                            <button
                                                 onClick={() => {
                                                     setSelectedWorkerId(d.worker.id);
                                                     setIsFormOpen(false);
@@ -1098,7 +1283,7 @@ const DebtManagement = ({ workers, records, transactions, onAddTransaction, proj
                                     <h3 className="font-bold text-slate-800">{selectedWorker.name}</h3>
                                     <p className="text-xs text-slate-500">{selectedWorker.role}</p>
                                 </div>
-                                <button 
+                                <button
                                     onClick={() => setIsFormOpen(!isFormOpen)}
                                     className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 flex items-center"
                                 >
@@ -1111,40 +1296,40 @@ const DebtManagement = ({ workers, records, transactions, onAddTransaction, proj
                                 <div className="p-4 bg-blue-50 border-b border-blue-100 animate-in fade-in slide-in-from-top-2">
                                     <div className="space-y-3">
                                         <div className="flex gap-2">
-                                            <button 
+                                            <button
                                                 className={`flex-1 py-1.5 text-sm rounded-md font-medium ${newTxType === 'advance' ? 'bg-orange-100 text-orange-700 border border-orange-200' : 'bg-white text-slate-600 border border-slate-200'}`}
                                                 onClick={() => setNewTxType('advance')}
                                             >
                                                 Ứng Lương
                                             </button>
-                                            <button 
+                                            <button
                                                 className={`flex-1 py-1.5 text-sm rounded-md font-medium ${newTxType === 'payment' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-white text-slate-600 border border-slate-200'}`}
                                                 onClick={() => setNewTxType('payment')}
                                             >
                                                 Thanh Toán
                                             </button>
                                         </div>
-                                        <input 
-                                            type="number" 
-                                            placeholder="Số tiền..." 
+                                        <input
+                                            type="number"
+                                            placeholder="Số tiền..."
                                             className="w-full p-2 text-sm border rounded"
                                             value={newTxAmount}
                                             onChange={e => setNewTxAmount(e.target.value)}
                                         />
-                                        <input 
-                                            type="date" 
+                                        <input
+                                            type="date"
                                             className="w-full p-2 text-sm border rounded"
                                             value={newTxDate}
                                             onChange={e => setNewTxDate(e.target.value)}
                                         />
-                                        <input 
-                                            type="text" 
-                                            placeholder="Ghi chú..." 
+                                        <input
+                                            type="text"
+                                            placeholder="Ghi chú..."
                                             className="w-full p-2 text-sm border rounded"
                                             value={newTxNote}
                                             onChange={e => setNewTxNote(e.target.value)}
                                         />
-                                        <button 
+                                        <button
                                             onClick={handleAdd}
                                             className="w-full py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
                                         >
@@ -1194,23 +1379,23 @@ const DebtManagement = ({ workers, records, transactions, onAddTransaction, proj
 };
 
 const ManageWorkers = ({ workers, projects, onAdd, onDelete, onUpdate }: any) => {
-    const initialFormState: Worker = { id: '', name: '', role: 'Công nhật', dailyRate: 0, currentProjectId: '', identityCardNumber: '', phone: '', bankAccount: '', bankName: '' };
+    const initialFormState: Worker = { id: '', name: '', role: 'Công nhật', dailyRate: 0, rate1Cong: undefined, rate2Cong: undefined, currentProjectId: '', identityCardNumber: '', phone: '', bankAccount: '', bankName: '' };
     const [form, setForm] = useState<Worker>(initialFormState);
     const [isEditing, setIsEditing] = useState(false);
-    
+
     // Deletion Modal State
     const [deleteId, setDeleteId] = useState<string | null>(null);
 
     const handleSubmit = () => {
         if (!form.name) return alert("Vui lòng nhập tên công nhật");
-        
+
         if (isEditing) {
             onUpdate(form);
             // alert("Cập nhật thành công!"); // Handled by parent async
         } else {
-            onAdd({...form, id: generateId()});
+            onAdd({ ...form, id: generateId() });
         }
-        
+
         setForm(initialFormState);
         setIsEditing(false);
     };
@@ -1228,8 +1413,8 @@ const ManageWorkers = ({ workers, projects, onAdd, onDelete, onUpdate }: any) =>
 
     return (
         <div className="space-y-6">
-            <ConfirmationModal 
-                isOpen={!!deleteId} 
+            <ConfirmationModal
+                isOpen={!!deleteId}
                 title="Xóa Công Nhật"
                 message="Bạn có chắc chắn muốn xóa công nhật này không?"
                 onConfirm={() => {
@@ -1245,22 +1430,22 @@ const ManageWorkers = ({ workers, projects, onAdd, onDelete, onUpdate }: any) =>
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="font-semibold text-lg">{isEditing ? 'Sửa Thông Tin' : 'Thêm Công Nhật Mới'}</h3>
                         {isEditing && (
-                             <button onClick={handleCancel} className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded hover:bg-slate-200">Hủy</button>
+                            <button onClick={handleCancel} className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded hover:bg-slate-200">Hủy</button>
                         )}
                     </div>
                     <div className="space-y-4">
-                        <input className="w-full p-2 border rounded" placeholder="Họ tên" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
-                        <select className="w-full p-2 border rounded" value={form.role} onChange={e => setForm({...form, role: e.target.value})}>
+                        <input className="w-full p-2 border rounded" placeholder="Họ tên" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+                        <select className="w-full p-2 border rounded" value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
                             <option>Công nhật</option>
                             <option>Thợ Chính</option>
                             <option>Phụ Hồ</option>
                             <option>Kỹ Sư</option>
                             <option>Bảo Vệ</option>
                         </select>
-                         <select 
-                            className="w-full p-2 border rounded" 
-                            value={form.currentProjectId || ''} 
-                            onChange={e => setForm({...form, currentProjectId: e.target.value})}
+                        <select
+                            className="w-full p-2 border rounded"
+                            value={form.currentProjectId || ''}
+                            onChange={e => setForm({ ...form, currentProjectId: e.target.value })}
                         >
                             <option value="">-- Chọn Công Trình --</option>
                             {projects.map((p: Project) => (
@@ -1268,20 +1453,47 @@ const ManageWorkers = ({ workers, projects, onAdd, onDelete, onUpdate }: any) =>
                             ))}
                         </select>
                         <div className="grid grid-cols-2 gap-2">
-                            <input className="w-full p-2 border rounded" placeholder="SĐT" value={form.phone || ''} onChange={e => setForm({...form, phone: e.target.value})} />
-                            <input className="w-full p-2 border rounded" placeholder="Số CCCD" value={form.identityCardNumber || ''} onChange={e => setForm({...form, identityCardNumber: e.target.value})} />
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-2">
-                             <input className="w-full p-2 border rounded" placeholder="Số TK" value={form.bankAccount || ''} onChange={e => setForm({...form, bankAccount: e.target.value})} />
-                             <input className="w-full p-2 border rounded" placeholder="Tên Ngân hàng" value={form.bankName || ''} onChange={e => setForm({...form, bankName: e.target.value})} />
+                            <input className="w-full p-2 border rounded" placeholder="SĐT" value={form.phone || ''} onChange={e => setForm({ ...form, phone: e.target.value })} />
+                            <input className="w-full p-2 border rounded" placeholder="Số CCCD" value={form.identityCardNumber || ''} onChange={e => setForm({ ...form, identityCardNumber: e.target.value })} />
                         </div>
 
-                        <button 
+                        <div className="grid grid-cols-2 gap-2">
+                            <input className="w-full p-2 border rounded" placeholder="Số TK" value={form.bankAccount || ''} onChange={e => setForm({ ...form, bankAccount: e.target.value })} />
+                            <input className="w-full p-2 border rounded" placeholder="Tên Ngân hàng" value={form.bankName || ''} onChange={e => setForm({ ...form, bankName: e.target.value })} />
+                        </div>
+
+                        <div className="border-t pt-4 mt-2">
+                            <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase">Thiết lập giá công</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="text-xs text-slate-500 mb-1 block">Giá 1 công (VNĐ)</label>
+                                    <input
+                                        className="w-full p-2 border rounded"
+                                        type="number"
+                                        placeholder="300,000"
+                                        value={form.rate1Cong || form.dailyRate || ''}
+                                        onChange={e => setForm({ ...form, rate1Cong: Number(e.target.value), dailyRate: Number(e.target.value) })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-slate-500 mb-1 block">Giá 2 công (VNĐ)</label>
+                                    <input
+                                        className="w-full p-2 border rounded"
+                                        type="number"
+                                        placeholder="700,000"
+                                        value={form.rate2Cong || ''}
+                                        onChange={e => setForm({ ...form, rate2Cong: Number(e.target.value) })}
+                                    />
+                                </div>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-1 italic">Để trống nếu dùng giá mặc định</p>
+                        </div>
+
+                        <button
                             className={`w-full text-white py-2 rounded font-medium flex items-center justify-center ${isEditing ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'}`}
                             onClick={handleSubmit}
                         >
-                            {isEditing ? <Save className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />} 
+                            {isEditing ? <Save className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
                             {isEditing ? 'Cập Nhật' : 'Thêm'}
                         </button>
                     </div>
@@ -1321,12 +1533,12 @@ const ManageWorkers = ({ workers, projects, onAdd, onDelete, onUpdate }: any) =>
                                                 <button onClick={() => handleEdit(w)} className="text-blue-600 hover:bg-blue-50 p-2 rounded">
                                                     <Edit className="w-4 h-4" />
                                                 </button>
-                                                <button 
-                                                    type="button" 
-                                                    onClick={(e) => { 
-                                                        e.stopPropagation(); 
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
                                                         setDeleteId(w.id);
-                                                    }} 
+                                                    }}
                                                     className="text-red-500 hover:bg-red-50 p-2 rounded"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
@@ -1345,10 +1557,10 @@ const ManageWorkers = ({ workers, projects, onAdd, onDelete, onUpdate }: any) =>
 };
 
 const ManageProjects = ({ projects, onAdd, onDelete, onUpdate }: any) => {
-    const initialFormState: Project = { id: '', name: '', address: '', status: 'active', standardRate: 0, doubleRate: 0 };
+    const initialFormState: Project = { id: '', name: '', address: '', status: 'active' };
     const [form, setForm] = useState<Partial<Project>>(initialFormState);
     const [isEditing, setIsEditing] = useState(false);
-    
+
     // Deletion Modal State
     const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -1359,7 +1571,7 @@ const ManageProjects = ({ projects, onAdd, onDelete, onUpdate }: any) => {
             onUpdate(form);
             // alert("Cập nhật công trình thành công!");
         } else {
-            onAdd({...form, id: generateId(), status: 'active'});
+            onAdd({ ...form, id: generateId(), status: 'active' });
         }
         setForm(initialFormState);
         setIsEditing(false);
@@ -1376,10 +1588,10 @@ const ManageProjects = ({ projects, onAdd, onDelete, onUpdate }: any) => {
         setIsEditing(false);
     };
 
-     return (
+    return (
         <div className="space-y-6">
-            <ConfirmationModal 
-                isOpen={!!deleteId} 
+            <ConfirmationModal
+                isOpen={!!deleteId}
                 title="Xóa Công Trình"
                 message="Bạn có chắc chắn muốn xóa công trình này không?"
                 onConfirm={() => {
@@ -1394,44 +1606,21 @@ const ManageProjects = ({ projects, onAdd, onDelete, onUpdate }: any) => {
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="font-semibold text-lg">{isEditing ? 'Cập Nhật Công Trình' : 'Thêm Công Trình'}</h3>
-                         {isEditing && (
-                             <button onClick={handleCancel} className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded hover:bg-slate-200">Hủy</button>
+                        {isEditing && (
+                            <button onClick={handleCancel} className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded hover:bg-slate-200">Hủy</button>
                         )}
                     </div>
                     <div className="space-y-4">
-                        <input className="w-full p-2 border rounded" placeholder="Tên công trình" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
-                        <input className="w-full p-2 border rounded" placeholder="Địa chỉ" value={form.address} onChange={e => setForm({...form, address: e.target.value})} />
-                        
-                        <div className="grid grid-cols-2 gap-2">
-                             <div>
-                                 <label className="text-xs text-slate-500 mb-1 block">Giá 1 công (VNĐ)</label>
-                                 <input 
-                                    className="w-full p-2 border rounded" 
-                                    type="number" 
-                                    placeholder="500,000" 
-                                    value={form.standardRate || ''} 
-                                    onChange={e => setForm({...form, standardRate: Number(e.target.value)})} 
-                                />
-                             </div>
-                             <div>
-                                 <label className="text-xs text-slate-500 mb-1 block">Giá 2 công (VNĐ)</label>
-                                 <input 
-                                    className="w-full p-2 border rounded" 
-                                    type="number" 
-                                    placeholder="1,000,000" 
-                                    value={form.doubleRate || ''} 
-                                    onChange={e => setForm({...form, doubleRate: Number(e.target.value)})} 
-                                />
-                             </div>
-                        </div>
-                        
+                        <input className="w-full p-2 border rounded" placeholder="Tên công trình" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+                        <input className="w-full p-2 border rounded" placeholder="Địa chỉ" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
+
                         {isEditing && (
                             <div>
                                 <label className="text-xs text-slate-500 mb-1 block">Trạng thái</label>
-                                <select 
+                                <select
                                     className="w-full p-2 border rounded"
                                     value={form.status}
-                                    onChange={e => setForm({...form, status: e.target.value as any})}
+                                    onChange={e => setForm({ ...form, status: e.target.value as any })}
                                 >
                                     <option value="active">Đang chạy</option>
                                     <option value="completed">Đã hoàn thành</option>
@@ -1439,11 +1628,11 @@ const ManageProjects = ({ projects, onAdd, onDelete, onUpdate }: any) => {
                             </div>
                         )}
 
-                        <button 
+                        <button
                             className={`w-full text-white py-2 rounded font-medium flex items-center justify-center ${isEditing ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'}`}
                             onClick={handleSubmit}
                         >
-                            {isEditing ? <Save className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />} 
+                            {isEditing ? <Save className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
                             {isEditing ? 'Cập Nhật' : 'Thêm'}
                         </button>
                     </div>
@@ -1454,7 +1643,6 @@ const ManageProjects = ({ projects, onAdd, onDelete, onUpdate }: any) => {
                             <tr>
                                 <th className="p-4 text-left">Tên Công Trình</th>
                                 <th className="p-4 text-left">Địa Chỉ</th>
-                                <th className="p-4 text-right">Đơn Giá (1/2 công)</th>
                                 <th className="p-4 text-center">Trạng Thái</th>
                                 <th className="p-4 text-right">Thao Tác</th>
                             </tr>
@@ -1464,16 +1652,6 @@ const ManageProjects = ({ projects, onAdd, onDelete, onUpdate }: any) => {
                                 <tr key={p.id} className={isEditing && form.id === p.id ? 'bg-orange-50' : 'hover:bg-slate-50'}>
                                     <td className="p-4 font-medium">{p.name}</td>
                                     <td className="p-4 text-slate-500">{p.address}</td>
-                                    <td className="p-4 text-right">
-                                        {(p.standardRate || p.doubleRate) ? (
-                                            <div className="flex flex-col text-sm">
-                                                <span className="text-blue-600">1C: {formatCurrency(p.standardRate || 0)}</span>
-                                                <span className="text-indigo-600">2C: {formatCurrency(p.doubleRate || 0)}</span>
-                                            </div>
-                                        ) : (
-                                            <span className="text-slate-400 italic text-sm">Chưa set</span>
-                                        )}
-                                    </td>
                                     <td className="p-4 text-center">
                                         <span className={`px-2 py-1 rounded text-xs ${p.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
                                             {p.status === 'active' ? 'Đang chạy' : 'Hoàn thành'}
@@ -1484,12 +1662,12 @@ const ManageProjects = ({ projects, onAdd, onDelete, onUpdate }: any) => {
                                             <button onClick={() => handleEdit(p)} className="text-blue-600 hover:bg-blue-50 p-2 rounded">
                                                 <Edit className="w-4 h-4" />
                                             </button>
-                                            <button 
-                                                type="button" 
-                                                onClick={(e) => { 
-                                                    e.stopPropagation(); 
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
                                                     setDeleteId(p.id);
-                                                }} 
+                                                }}
                                                 className="text-red-500 hover:bg-red-50 p-2 rounded"
                                             >
                                                 <Trash2 className="w-4 h-4" />
@@ -1618,7 +1796,7 @@ const App = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [view, setView] = useState<ViewMode>('dashboard');
     const [mobileOpen, setMobileOpen] = useState(false);
-    
+
     // Global Loading State
     const [isLoading, setIsLoading] = useState(false);
 
@@ -1633,7 +1811,7 @@ const App = () => {
     useEffect(() => {
         const loadData = async () => {
             if (!currentUser) return;
-            
+
             setIsLoading(true);
             try {
                 // Use Promise.allSettled to allow some APIs to fail (like 404s on new deployments)
@@ -1658,7 +1836,7 @@ const App = () => {
                 setRecords(extract(results[2], 'Records') || []);
                 setTransactions(extract(results[3], 'Transactions') || []);
                 setLogs(extract(results[4], 'Logs') || []);
-                
+
             } catch (error) {
                 console.error("Critical failure loading data:", error);
                 // No alert here to prevent blocking UI on transient network errors
@@ -1685,7 +1863,7 @@ const App = () => {
         // Sync with background
         try {
             await api.createLog(newLog);
-        } catch(e) { console.error("Log failed", e); }
+        } catch (e) { console.error("Log failed", e); }
     };
 
     const handleLogin = (user: User) => {
@@ -1725,7 +1903,7 @@ const App = () => {
             setRecords(prev => prev.map(r => r.id === id ? updated : r));
             await addLog('Sửa chấm công', `Cập nhật bản ghi ${id}`);
         } catch (error) {
-             alert("Lỗi khi cập nhật");
+            alert("Lỗi khi cập nhật");
         } finally {
             setIsLoading(false);
         }
@@ -1790,85 +1968,85 @@ const App = () => {
             setWorkers(prev => prev.filter(w => w.id !== id));
             await addLog('Xóa công nhật', `Xóa công nhật ID ${id}`);
         } catch (error) {
-             alert("Lỗi xóa nhân viên");
+            alert("Lỗi xóa nhân viên");
         } finally {
             setIsLoading(false);
         }
     };
 
-   const handleAddProject = async (p: Project) => {
-  setIsLoading(true);
-  try {
-    const storage = await api.getStorage();
+    const handleAddProject = async (p: Project) => {
+        setIsLoading(true);
+        try {
+            const storage = await api.getStorage();
 
-    const newProject: Project = {
-      ...p,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
+            const newProject: Project = {
+                ...p,
+                id: crypto.randomUUID(),
+                createdAt: new Date().toISOString(),
+            };
+
+            storage.projects = [
+                newProject,
+                ...storage.projects,
+            ];
+
+            await api.saveStorage(storage);
+
+            setProjects(prev => [newProject, ...prev]);
+
+            await addLog('Thêm công trình', `Thêm công trình ${p.name}`);
+        } catch (error) {
+            console.error(error);
+            alert("Lỗi thêm công trình");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    storage.projects = [
-      newProject,
-      ...storage.projects,
-    ];
 
-    await api.saveStorage(storage);
+    const handleUpdateProject = async (p: Project) => {
+        setIsLoading(true);
+        try {
+            const storage = await api.getStorage();
 
-    setProjects(prev => [newProject, ...prev]);
+            storage.projects = storage.projects.map(project =>
+                project.id === p.id ? { ...project, ...p } : project
+            );
 
-    await addLog('Thêm công trình', `Thêm công trình ${p.name}`);
-  } catch (error) {
-    console.error(error);
-    alert("Lỗi thêm công trình");
-  } finally {
-    setIsLoading(false);
-  }
-};
+            await api.saveStorage(storage);
 
+            setProjects(prev =>
+                prev.map(item => (item.id === p.id ? p : item))
+            );
 
-   const handleUpdateProject = async (p: Project) => {
-  setIsLoading(true);
-  try {
-    const storage = await api.getStorage();
+            await addLog('Sửa công trình', `Cập nhật công trình ${p.name}`);
+        } catch (error) {
+            console.error(error);
+            alert('Lỗi cập nhật công trình');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-    storage.projects = storage.projects.map(project =>
-      project.id === p.id ? { ...project, ...p } : project
-    );
+    const handleDeleteProject = async (id: string) => {
+        setIsLoading(true);
+        try {
+            const storage = await api.getStorage();
 
-    await api.saveStorage(storage);
+            storage.projects = storage.projects.filter(p => p.id !== id);
 
-    setProjects(prev =>
-      prev.map(item => (item.id === p.id ? p : item))
-    );
+            await api.saveStorage(storage);
 
-    await addLog('Sửa công trình', `Cập nhật công trình ${p.name}`);
-  } catch (error) {
-    console.error(error);
-    alert('Lỗi cập nhật công trình');
-  } finally {
-    setIsLoading(false);
-  }
-};
+            setProjects(prev => prev.filter(p => p.id !== id));
 
-const handleDeleteProject = async (id: string) => {
-  setIsLoading(true);
-  try {
-    const storage = await api.getStorage();
-
-    storage.projects = storage.projects.filter(p => p.id !== id);
-
-    await api.saveStorage(storage);
-
-    setProjects(prev => prev.filter(p => p.id !== id));
-
-    await addLog('Xóa công trình', `Xóa công trình ID ${id}`);
-  } catch (error) {
-    console.error(error);
-    alert('Lỗi xóa công trình');
-  } finally {
-    setIsLoading(false);
-  }
-};
+            await addLog('Xóa công trình', `Xóa công trình ID ${id}`);
+        } catch (error) {
+            console.error(error);
+            alert('Lỗi xóa công trình');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
 
     const handleRestore = async (data: any) => {
@@ -1883,15 +2061,15 @@ const handleDeleteProject = async (id: string) => {
                 api.getTransactions(),
                 api.getLogs()
             ]);
-            
+
             const extract = <T,>(result: PromiseSettledResult<T>) => result.status === 'fulfilled' ? result.value : [];
-            
+
             setWorkers(extract(results[0]) as any || []);
             setProjects(extract(results[1]) as any || []);
             setRecords(extract(results[2]) as any || []);
             setTransactions(extract(results[3]) as any || []);
             setLogs(extract(results[4]) as any || []);
-            
+
             await addLog('Phục hồi dữ liệu', 'Khôi phục dữ liệu từ file backup');
             alert("Phục hồi thành công!");
         } catch (error) {
@@ -1908,26 +2086,26 @@ const handleDeleteProject = async (id: string) => {
     return (
         <div className="flex min-h-screen bg-slate-100">
             {isLoading && <LoadingOverlay />}
-            
-            <Sidebar 
-                currentView={view} 
-                setView={setView} 
-                mobileOpen={mobileOpen} 
-                setMobileOpen={setMobileOpen} 
+
+            <Sidebar
+                currentView={view}
+                setView={setView}
+                mobileOpen={mobileOpen}
+                setMobileOpen={setMobileOpen}
                 currentUser={currentUser}
                 onLogout={handleLogout}
             />
-            
+
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                 <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 sm:px-6 print:hidden">
-                    <button 
+                    <button
                         onClick={() => setMobileOpen(true)}
                         className="lg:hidden p-2 rounded-md text-slate-400 hover:text-slate-500 hover:bg-slate-100"
                     >
                         <Menu className="w-6 h-6" />
                     </button>
                     <div className="flex-1 flex justify-end">
-                       {/* Header actions if needed */}
+                        {/* Header actions if needed */}
                     </div>
                 </header>
 
