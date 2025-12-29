@@ -58,7 +58,7 @@ export interface ActivityLog {
   timestamp: string;
 }
 
-export type ViewMode = 'dashboard' | 'timesheet' | 'payroll' | 'debt' | 'workers' | 'projects' | 'logs' | 'backup';
+export type ViewMode = 'dashboard' | 'timesheet' | 'payroll' | 'debt' | 'workers' | 'projects' | 'backup';
 
 export interface WeeklyPayrollItem {
   worker: Worker;

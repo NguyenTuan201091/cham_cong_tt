@@ -152,8 +152,8 @@ const LoginScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
         <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
             <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border border-slate-200">
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
-                        <Lock className="w-8 h-8 text-blue-600" />
+                    <div className="flex justify-center mb-4">
+                        <img src="/logo.jpg" alt="T&T Logo" className="h-24 w-24 object-contain rounded-full border-4 border-blue-100" />
                     </div>
                     <h1 className="text-2xl font-bold text-slate-800">Đăng Nhập Hệ Thống</h1>
                     <p className="text-slate-500 mt-2">Chấm công công nhật T&T</p>
@@ -217,7 +217,6 @@ const Sidebar = ({ currentView, setView, mobileOpen, setMobileOpen, currentUser,
     ];
 
     if (currentUser.role === 'admin') {
-        menuItems.push({ id: 'logs', label: 'Nhật Ký', icon: History });
         menuItems.push({ id: 'backup', label: 'Sao Lưu & Phục Hồi', icon: Database });
     }
 
@@ -230,9 +229,10 @@ const Sidebar = ({ currentView, setView, mobileOpen, setMobileOpen, currentUser,
                 />
             )}
 
-            <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} print:hidden flex flex-col`}>
-                <div className="flex items-center justify-center h-16 border-b border-slate-800 shrink-0">
-                    <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">Chấm công T&T</h1>
+            <div className="fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} print:hidden flex flex-col">
+                <div className="flex items-center justify-center h-20 border-b border-slate-800 shrink-0 px-4">
+                    <img src="/logo.jpg" alt="T&T Logo" className="h-16 w-16 object-contain rounded-full" />
+                    <h1 className="ml-3 text-lg font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">Chấm công T&T</h1>
                 </div>
 
                 <div className="p-4 border-b border-slate-800 bg-slate-800/50">
@@ -410,6 +410,11 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
     const [projectId, setProjectId] = useState(projects.length > 0 ? projects[0].id : '');
     const [filterByProject, setFilterByProject] = useState(true);
 
+    // Bulk date selection for faster attendance marking
+    const [bulkMode, setBulkMode] = useState(false);
+    const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+    const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+
     // Deletion Modal State
     const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -476,23 +481,48 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
 
     const handleSave = () => {
         const newRecords: TimeRecord[] = [];
-        filteredWorkers.forEach(worker => {
-            const data = inputs[worker.id];
-            if (data && data.selected) {
-                newRecords.push({
-                    id: generateId(),
-                    workerId: worker.id,
-                    projectId,
-                    date,
-                    shifts: data.shifts,
-                    rateUsed: data.customRate,
-                    note: data.note
-                });
+
+        // Generate dates array based on mode
+        const datesToProcess: string[] = [];
+        if (bulkMode) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const current = new Date(start);
+
+            while (current <= end) {
+                datesToProcess.push(current.toISOString().split('T')[0]);
+                current.setDate(current.getDate() + 1);
             }
+        } else {
+            datesToProcess.push(date);
+        }
+
+        // Create records for each date
+        datesToProcess.forEach(processDate => {
+            filteredWorkers.forEach(worker => {
+                const data = inputs[worker.id];
+                if (data && data.selected) {
+                    newRecords.push({
+                        id: generateId(),
+                        workerId: worker.id,
+                        projectId,
+                        date: processDate,
+                        shifts: data.shifts,
+                        rateUsed: data.customRate,
+                        note: data.note
+                    });
+                }
+            });
         });
 
         if (newRecords.length === 0) {
             alert("Vui lòng chọn ít nhất một công nhật để chấm công.");
+            return;
+        }
+
+        const daysCount = datesToProcess.length;
+        const workersCount = filteredWorkers.filter(w => inputs[w.id]?.selected).length;
+        if (bulkMode && !confirm(`Bạn muốn chấm công cho ${workersCount} công nhật trong ${daysCount} ngày (tổng ${newRecords.length} bản ghi)?`)) {
             return;
         }
 
@@ -540,12 +570,42 @@ const Timesheet = ({ workers, projects, records, onAddRecord, onUpdateRecord, on
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <h2 className="text-2xl font-bold text-slate-800">Chấm Công Hàng Ngày</h2>
                     <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                        <input
-                            type="date"
-                            value={date}
-                            onChange={(e) => setDate(e.target.value)}
-                            className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
+                        <label className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
+                            <input
+                                type="checkbox"
+                                checked={bulkMode}
+                                onChange={(e) => setBulkMode(e.target.checked)}
+                                className="w-4 h-4 text-blue-600"
+                            />
+                            <span className="text-sm font-medium text-blue-700">Chấm nhiều ngày</span>
+                        </label>
+
+                        {bulkMode ? (
+                            <>
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder="Từ ngày"
+                                />
+                                <span className="flex items-center text-slate-500">→</span>
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder="Đến ngày"
+                                />
+                            </>
+                        ) : (
+                            <input
+                                type="date"
+                                value={date}
+                                onChange={(e) => setDate(e.target.value)}
+                                className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                            />
+                        )}
                         <select
                             value={projectId}
                             onChange={(e) => setProjectId(e.target.value)}
@@ -908,6 +968,9 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
             </div>
 
             <div className="hidden print:block mb-8 text-center border-b pb-4">
+                <div className="flex justify-center mb-3">
+                    <img src="/logo.jpg" alt="T&T Logo" className="h-20 w-20 object-contain" />
+                </div>
                 <h1 className="text-2xl font-bold uppercase">Bảng Lương Công Nhật</h1>
                 <p className="text-slate-800 mt-2 text-lg font-medium">Kỳ lương: {formatDate(weekStart)} - {formatDate(weekEnd)}</p>
                 <p className="text-slate-900 font-bold mt-1 text-xl uppercase">
@@ -1075,6 +1138,7 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                         <p className="text-indigo-100 text-sm mb-6">
                             Sử dụng AI để phân tích dữ liệu bảng lương, tìm ra các bất thường và tối ưu chi phí.
                         </p>
+                        <p className="text-slate-600 text-sm mt-2">CÔNG TY TNHH XD GT T&T TP.HCM</p>
                         <button
                             onClick={handleAnalyze}
                             disabled={analyzing || weeklyData.length === 0}
@@ -2117,7 +2181,6 @@ const App = () => {
                         {view === 'debt' && <DebtManagement workers={workers} records={records} transactions={transactions} onAddTransaction={handleAddTransaction} projects={projects} />}
                         {view === 'workers' && <ManageWorkers workers={workers} projects={projects} onAdd={handleAddWorker} onUpdate={handleUpdateWorker} onDelete={handleDeleteWorker} />}
                         {view === 'projects' && <ManageProjects projects={projects} onAdd={handleAddProject} onUpdate={handleUpdateProject} onDelete={handleDeleteProject} />}
-                        {view === 'logs' && currentUser.role === 'admin' && <ActivityLogs logs={logs} />}
                         {view === 'backup' && currentUser.role === 'admin' && <SystemBackup onRestore={handleRestore} workers={workers} projects={projects} records={records} transactions={transactions} logs={logs} />}
                     </div>
                 </main>
