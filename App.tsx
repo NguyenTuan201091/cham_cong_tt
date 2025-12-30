@@ -1173,11 +1173,9 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                             </td>
                                         </tr>
                                     )}
-                                </tbody>
-                                {/* Grand Total Row */}
-                                {weeklyData.length > 0 && (
-                                    <tfoot className="bg-gradient-to-r from-blue-50 to-indigo-50 print:bg-gray-300 border-t-4 border-blue-600 print:border-black">
-                                        <tr className="font-bold">
+                                    {/* Grand Total Row - placed in tbody to appear only once */}
+                                    {weeklyData.length > 0 && (
+                                        <tr className="bg-gradient-to-r from-blue-50 to-indigo-50 print:bg-gray-300 border-t-4 border-blue-600 print:border-black font-bold grand-total-row">
                                             <td colSpan={dateColumns.length + 4} className="p-4 text-right text-lg text-slate-800 print:text-black uppercase">
                                                 TỔNG CỘNG:
                                             </td>
@@ -1187,8 +1185,8 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                             <td colSpan={1} className="p-4">
                                             </td>
                                         </tr>
-                                    </tfoot>
-                                )}
+                                    )}
+                                </tbody>
                             </table>
                         </div>
                     </div>

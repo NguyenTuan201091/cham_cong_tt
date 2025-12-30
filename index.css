@@ -27,12 +27,12 @@
         break-after: avoid;
     }
 
-    /* Keep grand total on same page if possible */
-    tfoot {
+    /* Keep grand total row at the end without page break */
+    .grand-total-row {
+        page-break-before: avoid;
+        break-before: avoid;
         page-break-inside: avoid;
         break-inside: avoid;
-        page-break-before: auto;
-        break-before: auto;
     }
 
     /* Prevent orphan rows */
@@ -52,7 +52,7 @@
     }
 
     /* Make grand total stand out */
-    tfoot tr {
+    .grand-total-row {
         font-weight: bold;
         font-size: 11pt;
     }
