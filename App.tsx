@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Worker, Project, TimeRecord, ViewMode, WeeklyPayrollItem, Transaction, User, ActivityLog } from './types';
 import { MOCK_USERS } from './constants'; // Only keeping Users for Auth simulation
-import { analyzePayroll } from './services/geminiService';
+
 import { api } from './services/api';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -15,7 +15,6 @@ import {
     X,
     Plus,
     Trash2,
-    BrainCircuit,
     ChevronLeft,
     ChevronRight,
     Save,
@@ -767,8 +766,7 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
     // Filter state
     const [filterProjectId, setFilterProjectId] = useState('');
 
-    const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
-    const [analyzing, setAnalyzing] = useState(false);
+
 
     const weekStart = useMemo(() => {
         const d = new Date(weekEnd);
@@ -781,7 +779,6 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
         if (isNaN(selected.getTime())) return;
         const thursday = getThursdayOfWeek(selected);
         setWeekEnd(thursday.toISOString().split('T')[0]);
-        setAiAnalysis(null);
     };
 
     // Generate array of dates for the week
@@ -837,12 +834,7 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
 
     }, [weekStart, weekEnd, records, workers, projects, filterProjectId]);
 
-    const handleAnalyze = async () => {
-        setAnalyzing(true);
-        const result = await analyzePayroll(weeklyData, weekStart, weekEnd);
-        setAiAnalysis(result);
-        setAnalyzing(false);
-    };
+
 
     const handleExportExcel = () => {
         // Group data by project if showing all projects
@@ -1212,33 +1204,6 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                     </div>
                 </div>
 
-                <div className="space-y-6 print:hidden">
-                    <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl p-6 text-white shadow-lg">
-                        <div className="flex items-center mb-4">
-                            <BrainCircuit className="w-6 h-6 mr-2" />
-                            <h3 className="text-lg font-bold">Trợ Lý AI</h3>
-                        </div>
-                        <p className="text-indigo-100 text-sm mb-6">
-                            Sử dụng AI để phân tích dữ liệu bảng lương, tìm ra các bất thường và tối ưu chi phí.
-                        </p>
-                        <button
-                            onClick={handleAnalyze}
-                            disabled={analyzing || weeklyData.length === 0}
-                            className="w-full py-2 bg-white text-indigo-700 font-semibold rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {analyzing ? 'Đang phân tích...' : 'Phân Tích Ngay'}
-                        </button>
-                    </div>
-
-                    {aiAnalysis && (
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <h3 className="font-bold text-slate-800 mb-3 border-b pb-2">Kết Quả Phân Tích</h3>
-                            <div className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
-                                {aiAnalysis}
-                            </div>
-                        </div>
-                    )}
-                </div>
             </div>
         </div>
     );
