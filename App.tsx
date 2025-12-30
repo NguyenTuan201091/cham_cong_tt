@@ -1022,16 +1022,16 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 border-b border-slate-200 print:bg-gray-100 print:border-black">
                                     <tr>
-                                        <th className="p-4 font-semibold text-slate-700 print:text-black">Công Nhật</th>
-                                        <th className="p-4 font-semibold text-slate-700 print:text-black">Công Trình</th>
+                                        <th className="p-4 font-semibold text-slate-700 print:text-black border-r border-slate-200 print:border-black">Công Nhật</th>
+                                        <th className="p-4 font-semibold text-slate-700 print:text-black border-r border-slate-200 print:border-black">Công Trình</th>
                                         {dateColumns.map(date => (
-                                            <th key={date} className="p-2 font-semibold text-slate-700 text-center print:text-black print:text-xs">
+                                            <th key={date} className="p-2 font-semibold text-slate-700 text-center print:text-black print:text-xs border-r border-slate-200 print:border-black">
                                                 <div className="text-xs print:text-[10px]">{formatShortDate(date)}</div>
                                             </th>
                                         ))}
-                                        <th className="p-4 font-semibold text-slate-700 text-center print:text-black">Tổng Công</th>
-                                        <th className="p-4 font-semibold text-slate-700 text-right print:text-black">Lương Tuần</th>
-                                        <th className="p-4 font-semibold text-slate-700 print:text-black print:text-xs">Số TK</th>
+                                        <th className="p-4 font-semibold text-slate-700 text-center print:text-black border-r border-slate-200 print:border-black">Tổng Công</th>
+                                        <th className="p-4 font-semibold text-slate-700 text-right print:text-black border-r border-slate-200 print:border-black">Lương Tuần</th>
+                                        <th className="p-4 font-semibold text-slate-700 print:text-black print:text-xs border-r border-slate-200 print:border-black">Số TK</th>
                                         <th className="p-4 font-semibold text-slate-700 print:text-black print:text-xs">Ngân hàng</th>
                                     </tr>
                                 </thead>
@@ -1064,11 +1064,11 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                                 items.forEach(item => {
                                                     rows.push(
                                                         <tr key={item.worker.id} className="hover:bg-slate-50 print:hover:bg-transparent">
-                                                            <td className="p-4">
+                                                            <td className="p-4 border-r border-slate-200 print:border-black">
                                                                 <div className="font-medium text-slate-800 print:text-black">{item.worker.name}</div>
                                                                 <div className="text-xs text-slate-500 print:text-gray-600">{item.worker.role}</div>
                                                             </td>
-                                                            <td className="p-4 text-sm text-slate-600 print:text-black print:text-xs">
+                                                            <td className="p-4 text-sm text-slate-600 print:text-black print:text-xs border-r border-slate-200 print:border-black">
                                                                 {item.projectNames.map((name, idx) => (
                                                                     <div key={idx} className="flex items-center">
                                                                         <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2 print:hidden"></span>
@@ -1079,7 +1079,7 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                                             {dateColumns.map(date => {
                                                                 const dayRecord = item.details.find(d => d.date === date);
                                                                 return (
-                                                                    <td key={date} className="p-2 text-center print:text-xs">
+                                                                    <td key={date} className="p-2 text-center print:text-xs border-r border-slate-200 print:border-black">
                                                                         {dayRecord ? (
                                                                             <span className="font-bold text-blue-600 print:text-black">{dayRecord.shifts}</span>
                                                                         ) : (
@@ -1088,13 +1088,13 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                                                     </td>
                                                                 );
                                                             })}
-                                                            <td className="p-4 text-center">
+                                                            <td className="p-4 text-center border-r border-slate-200 print:border-black">
                                                                 <span className="font-bold text-blue-700 text-lg print:text-black print:text-base">
                                                                     {item.totalShifts}
                                                                 </span>
                                                             </td>
-                                                            <td className="p-4 text-right font-bold text-emerald-600 print:text-black">{formatCurrency(item.totalAmount)}</td>
-                                                            <td className="p-4 text-sm text-slate-600 print:text-black print:text-xs">{item.worker.bankAccount || "Chưa cập nhật"}</td>
+                                                            <td className="p-4 text-right font-bold text-emerald-600 print:text-black border-r border-slate-200 print:border-black">{formatCurrency(item.totalAmount)}</td>
+                                                            <td className="p-4 text-sm text-slate-600 print:text-black print:text-xs border-r border-slate-200 print:border-black">{item.worker.bankAccount || "Chưa cập nhật"}</td>
                                                             <td className="p-4 text-sm text-slate-600 print:text-black print:text-xs">{item.worker.bankName || "Chưa cập nhật"}</td>
                                                         </tr>
                                                     );
@@ -1122,11 +1122,11 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                             return weeklyData.map(item => {
                                                 return (
                                                     <tr key={item.worker.id} className="hover:bg-slate-50 print:hover:bg-transparent">
-                                                        <td className="p-4">
+                                                        <td className="p-4 border-r border-slate-200 print:border-black">
                                                             <div className="font-medium text-slate-800 print:text-black">{item.worker.name}</div>
                                                             <div className="text-xs text-slate-500 print:text-gray-600">{item.worker.role}</div>
                                                         </td>
-                                                        <td className="p-4 text-sm text-slate-600 print:text-black print:text-xs">
+                                                        <td className="p-4 text-sm text-slate-600 print:text-black print:text-xs border-r border-slate-200 print:border-black">
                                                             {item.projectNames.map((name, idx) => (
                                                                 <div key={idx} className="flex items-center">
                                                                     <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2 print:hidden"></span>
@@ -1137,7 +1137,7 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                                         {dateColumns.map(date => {
                                                             const dayRecord = item.details.find(d => d.date === date);
                                                             return (
-                                                                <td key={date} className="p-2 text-center print:text-xs">
+                                                                <td key={date} className="p-2 text-center print:text-xs border-r border-slate-200 print:border-black">
                                                                     {dayRecord ? (
                                                                         <span className="font-bold text-blue-600 print:text-black">{dayRecord.shifts}</span>
                                                                     ) : (
@@ -1146,13 +1146,13 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                                                 </td>
                                                             );
                                                         })}
-                                                        <td className="p-4 text-center">
+                                                        <td className="p-4 text-center border-r border-slate-200 print:border-black">
                                                             <span className="font-bold text-blue-700 text-lg print:text-black print:text-base">
                                                                 {item.totalShifts}
                                                             </span>
                                                         </td>
-                                                        <td className="p-4 text-right font-bold text-emerald-600 print:text-black">{formatCurrency(item.totalAmount)}</td>
-                                                        <td className="p-4 text-sm text-slate-600 print:text-black print:text-xs">{item.worker.bankAccount || "Chưa cập nhật"}</td>
+                                                        <td className="p-4 text-right font-bold text-emerald-600 print:text-black border-r border-slate-200 print:border-black">{formatCurrency(item.totalAmount)}</td>
+                                                        <td className="p-4 text-sm text-slate-600 print:text-black print:text-xs border-r border-slate-200 print:border-black">{item.worker.bankAccount || "Chưa cập nhật"}</td>
                                                         <td className="p-4 text-sm text-slate-600 print:text-black print:text-xs">{item.worker.bankName || "Chưa cập nhật"}</td>
                                                     </tr>
                                                 );
