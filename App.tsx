@@ -1015,8 +1015,8 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6 lg:w-full print:col-span-3 print:w-full">
+            <div className="space-y-6">
+                <div className="space-y-6">
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden print:border-black print:shadow-none">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
