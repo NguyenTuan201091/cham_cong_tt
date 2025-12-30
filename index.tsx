@@ -1,8 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import './index.css';
 
-class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
   constructor(props: any) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -22,12 +23,12 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
         <div style={{ padding: '2rem', fontFamily: 'sans-serif', textAlign: 'center', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <h1 style={{ color: '#ef4444', fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem' }}>Đã xảy ra lỗi hệ thống</h1>
           <p style={{ color: '#374151', marginBottom: '1rem' }}>Vui lòng tải lại trang. Nếu lỗi vẫn tiếp diễn, hãy chụp màn hình này gửi cho admin.</p>
-          <div style={{ 
-            marginTop: '1rem', 
-            padding: '1rem', 
-            background: '#f3f4f6', 
-            borderRadius: '0.5rem', 
-            overflow: 'auto', 
+          <div style={{
+            marginTop: '1rem',
+            padding: '1rem',
+            background: '#f3f4f6',
+            borderRadius: '0.5rem',
+            overflow: 'auto',
             maxWidth: '80%',
             textAlign: 'left',
             fontFamily: 'monospace',
@@ -36,8 +37,8 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
           }}>
             {this.state.error?.toString()}
           </div>
-          <button 
-            onClick={() => window.location.reload()} 
+          <button
+            onClick={() => window.location.reload()}
             style={{ marginTop: '2rem', padding: '0.5rem 1rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '0.25rem', cursor: 'pointer' }}
           >
             Tải lại trang
@@ -46,7 +47,7 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
       );
     }
 
-    return this.props.children; 
+    return this.props.children;
   }
 }
 

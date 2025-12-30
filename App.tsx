@@ -1061,7 +1061,7 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                             projectGroups.forEach((items, projectName) => {
                                                 // Project header row (only in print)
                                                 rows.push(
-                                                    <tr key={`header-${projectName}`} className="hidden print:table-row bg-slate-200">
+                                                    <tr key={`header-${projectName}`} className="hidden print:table-row bg-slate-200 project-header">
                                                         <td colSpan={dateColumns.length + 6} className="p-3 font-bold text-black text-center uppercase border-t-2 border-black">
                                                             Công trình: {projectName}
                                                         </td>
@@ -1108,15 +1108,18 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                                     );
                                                 });
 
-                                                // Subtotal row (only in print)
+                                                // Subtotal row - visible on screen and print
                                                 const subtotal = items.reduce((sum, item) => sum + item.totalAmount, 0);
                                                 rows.push(
-                                                    <tr key={`subtotal-${projectName}`} className="hidden print:table-row bg-slate-100">
-                                                        <td colSpan={dateColumns.length + 4} className="p-3 text-right font-bold text-black">
+                                                    <tr key={`subtotal-${projectName}`} className="bg-slate-100 print:bg-gray-200 border-t-2 border-slate-300 print:border-black subtotal-row">
+                                                        <td colSpan={dateColumns.length + 3} className="p-3 text-right font-bold text-slate-700 print:text-black italic">
                                                             Subtotal ({projectName}):
                                                         </td>
-                                                        <td className="p-3 text-right font-bold text-black">
+                                                        <td className="p-3 text-right font-bold text-emerald-600 print:text-black">
                                                             {formatCurrency(subtotal)}
+                                                        </td>
+                                                        <td colSpan={2} className="p-3 text-xs text-slate-500 print:text-gray-600">
+                                                            (Ký, ghi rõ họ tên)
                                                         </td>
                                                     </tr>
                                                 );
@@ -1172,6 +1175,22 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                         </tr>
                                     )}
                                 </tbody>
+                                {/* Grand Total Row */}
+                                {weeklyData.length > 0 && (
+                                    <tfoot className="bg-gradient-to-r from-blue-50 to-indigo-50 print:bg-gray-300 border-t-4 border-blue-600 print:border-black">
+                                        <tr className="font-bold">
+                                            <td colSpan={dateColumns.length + 3} className="p-4 text-right text-lg text-slate-800 print:text-black uppercase">
+                                                TỔNG CỘNG:
+                                            </td>
+                                            <td className="p-4 text-right text-xl text-blue-700 print:text-black">
+                                                {formatCurrency(totalPayout)}
+                                            </td>
+                                            <td colSpan={2} className="p-4 text-xs text-slate-500 print:text-gray-600 italic">
+                                                Tổng tất cả công trình
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                )}
                             </table>
                         </div>
                     </div>
