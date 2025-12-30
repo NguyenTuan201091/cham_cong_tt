@@ -1191,13 +1191,7 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                         </div>
                     </div>
 
-                    {/* Prominent Total Section for Print/Export - Below table, above signatures */}
-                    <div className="hidden print:block bg-slate-50 border-2 border-black p-6 rounded-lg">
-                        <div className="text-center">
-                            <p className="text-xl font-bold text-black mb-2 uppercase">Tổng Cộng</p>
-                            <p className="text-3xl font-bold text-black">{formatCurrency(totalPayout)}</p>
-                        </div>
-                    </div>
+
                 </div>
 
                 {/* Signature Section for PDF */}
