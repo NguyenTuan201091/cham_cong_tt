@@ -917,10 +917,10 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                 wsData.push(row);
             });
 
-            // Subtotal
+            // Subtotal row
             const subtotalRow = ['', ''];
             dateColumns.forEach(() => subtotalRow.push(''));
-            subtotalRow.push('', group.subtotal.toString(), '', `Subtotal: ${formatCurrency(group.subtotal)}`);
+            subtotalRow.push('', `Subtotal (${group.projectName}):`, group.subtotal.toString(), '');
             wsData.push(subtotalRow);
             wsData.push([]);
         });
@@ -929,7 +929,7 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
         wsData.push([]);
         const totalRow = ['', ''];
         dateColumns.forEach(() => totalRow.push(''));
-        totalRow.push('TỔNG CỘNG:', totalPayout.toString(), '', formatCurrency(totalPayout));
+        totalRow.push('', 'TỔNG CỘNG:', totalPayout.toString(), '');
         wsData.push(totalRow);
 
         const ws = XLSX.utils.aoa_to_sheet(wsData);
@@ -1112,14 +1112,13 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                                 const subtotal = items.reduce((sum, item) => sum + item.totalAmount, 0);
                                                 rows.push(
                                                     <tr key={`subtotal-${projectName}`} className="bg-slate-100 print:bg-gray-200 border-t-2 border-slate-300 print:border-black subtotal-row">
-                                                        <td colSpan={dateColumns.length + 3} className="p-3 text-right font-bold text-slate-700 print:text-black italic">
+                                                        <td colSpan={dateColumns.length + 4} className="p-3 text-right font-bold text-slate-700 print:text-black italic">
                                                             Subtotal ({projectName}):
                                                         </td>
                                                         <td className="p-3 text-right font-bold text-emerald-600 print:text-black">
                                                             {formatCurrency(subtotal)}
                                                         </td>
-                                                        <td colSpan={2} className="p-3 text-xs text-slate-500 print:text-gray-600">
-                                                            (Ký, ghi rõ họ tên)
+                                                        <td colSpan={1} className="p-3 text-xs text-slate-500 print:text-gray-600">
                                                         </td>
                                                     </tr>
                                                 );
@@ -1179,14 +1178,13 @@ const Payroll = ({ workers, records, projects }: { workers: Worker[], records: T
                                 {weeklyData.length > 0 && (
                                     <tfoot className="bg-gradient-to-r from-blue-50 to-indigo-50 print:bg-gray-300 border-t-4 border-blue-600 print:border-black">
                                         <tr className="font-bold">
-                                            <td colSpan={dateColumns.length + 3} className="p-4 text-right text-lg text-slate-800 print:text-black uppercase">
+                                            <td colSpan={dateColumns.length + 4} className="p-4 text-right text-lg text-slate-800 print:text-black uppercase">
                                                 TỔNG CỘNG:
                                             </td>
                                             <td className="p-4 text-right text-xl text-blue-700 print:text-black">
                                                 {formatCurrency(totalPayout)}
                                             </td>
-                                            <td colSpan={2} className="p-4 text-xs text-slate-500 print:text-gray-600 italic">
-                                                Tổng tất cả công trình
+                                            <td colSpan={1} className="p-4">
                                             </td>
                                         </tr>
                                     </tfoot>
