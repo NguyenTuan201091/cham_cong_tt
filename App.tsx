@@ -95,7 +95,7 @@ function App() {
 
     // Sheet Operations
     const addSheet = async () => {
-        const name = prompt("Nhập tên Công trình / Công ty (Ví dụ: TT, MBM):");
+        const name = prompt("Nhập tên Công ty (Ví dụ: TT, MBM):");
         if (!name || !workbook) return;
 
         const newSheet: Sheet = {
