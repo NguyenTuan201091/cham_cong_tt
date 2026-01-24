@@ -1,69 +1,43 @@
-export interface Worker {
+export interface Personnel {
   id: string;
   name: string;
-  role: string; // Thợ chính, phụ hồ, v.v.
-  dailyRate: number; // Lương cơ bản theo ngày (1 công) - deprecated, use rate1Cong
-  rate1Cong?: number; // Giá cho 1 công
-  rate2Cong?: number; // Giá cho 2 công
-  currentProjectId?: string; // ID công trình đang phụ trách
-  identityCardNumber?: string; // Số CCCD
-  phone?: string;
-  bankAccount?: string;
-  bankName?: string;
+  accountNo: string;
+  bankName: string;
+  company: string; // "Công ty nào"
 }
 
-export interface Project {
+export interface PaymentBatch {
   id: string;
-  name: string;
-  address: string;
-  status: 'active' | 'completed';
+  name: string; // e.g., "Đợt 1", "Ứng lương"
+  date: string; // ISO date string or DD/MM/YYYY
 }
 
-export interface TimeRecord {
+export interface TransactionRow {
   id: string;
-  workerId: string;
-  projectId: string;
-  date: string; // ISO format YYYY-MM-DD
-  shifts: number; // Số công (ví dụ: 1, 0.5, 1.5, 2)
-  rateUsed: number; // Đơn giá áp dụng cho bản ghi này (để tính tiền linh hoạt)
-  note?: string;
+  accountNo: string;
+  bankName: string;
+  beneficiary: string; // Tên thụ hưởng
+  basicSalary: number;
+  extraSalary: number;
+  note: string; // Payment Detail
+  payments: { [batchId: string]: number }; // Map batchId -> amount paid in that batch
 }
 
-export type TransactionType = 'advance' | 'payment'; // Ứng lương | Thanh toán lương
-
-export interface Transaction {
+export interface Sheet {
   id: string;
-  workerId: string;
-  type: TransactionType;
-  amount: number;
-  date: string;
-  note?: string;
+  name: string; // e.g., "TT", "MBM", "Xe ben"
+  paymentBatches: PaymentBatch[];
+  rows: TransactionRow[];
 }
 
-export type UserRole = 'admin' | 'user';
-
-export interface User {
-  id: string;
-  username: string;
-  name: string;
-  role: UserRole;
+export interface Workbook {
+  month: number;
+  year: number;
+  sheets: Sheet[];
 }
 
-export interface ActivityLog {
-  id: string;
-  userId: string;
-  userName: string;
-  action: string; // e.g., "Chấm công", "Thêm nhân viên"
-  details: string; // e.g., "Chấm công cho 3 người ngày 2023-10-20"
-  timestamp: string;
-}
-
-export type ViewMode = 'dashboard' | 'timesheet' | 'payroll' | 'debt' | 'workers' | 'projects' | 'backup';
-
-export interface WeeklyPayrollItem {
-  worker: Worker;
-  totalShifts: number;
-  totalAmount: number;
-  details: TimeRecord[];
-  projectNames: string[]; // Added specifically for UI display
+// Simple App State Wrapper
+export interface AppData {
+  workbooks: Workbook[]; // Store multiple months
+  personnelList: Personnel[];
 }
