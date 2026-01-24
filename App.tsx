@@ -26,6 +26,12 @@ function App() {
     const [loading, setLoading] = useState(false);
     const [activeBatchId, setActiveBatchId] = useState<string | null>(null); // For Payment View
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterCompany, setFilterCompany] = useState<string>('ALL');
+
+    const companies = useMemo(() => {
+        const unique = new Set(personnelList.map(p => p.company).filter(Boolean));
+        return Array.from(unique).sort();
+    }, [personnelList]);
 
 
     // Initial Load
@@ -483,17 +489,29 @@ function App() {
                                             </h2>
 
                                             {/* Search Input for Sheets */}
-                                            <div className="relative flex-1 max-w-md">
-                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                    <Search className="h-4 w-4 text-slate-400" />
+                                            <div className="flex gap-2 flex-1 max-w-lg">
+                                                <div className="relative flex-1">
+                                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                        <Search className="h-4 w-4 text-slate-400" />
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        value={searchTerm}
+                                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                                        className="block w-full pl-10 pr-3 py-1.5 border border-slate-300 rounded-md leading-5 bg-white placeholder-slate-400 focus:outline-none focus:placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 sm:text-sm"
+                                                        placeholder="Tìm kiếm theo tên..."
+                                                    />
                                                 </div>
-                                                <input
-                                                    type="text"
-                                                    value={searchTerm}
-                                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                                    className="block w-full pl-10 pr-3 py-1.5 border border-slate-300 rounded-md leading-5 bg-white placeholder-slate-400 focus:outline-none focus:placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 sm:text-sm"
-                                                    placeholder="Tìm kiếm theo tên người hưởng..."
-                                                />
+                                                <select
+                                                    value={filterCompany}
+                                                    onChange={(e) => setFilterCompany(e.target.value)}
+                                                    className="block w-40 px-3 py-1.5 border border-slate-300 rounded-md leading-5 bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 sm:text-sm"
+                                                >
+                                                    <option value="ALL">Tất cả C.Ty</option>
+                                                    {companies.map(c => (
+                                                        <option key={c} value={c}>{c}</option>
+                                                    ))}
+                                                </select>
                                             </div>
                                         </div>
 
@@ -528,7 +546,15 @@ function App() {
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100">
                                                     {activeSheet.rows
-                                                        .filter(row => row.beneficiary.toLowerCase().includes(searchTerm.toLowerCase()))
+                                                        .filter(row => {
+                                                            const nameMatch = row.beneficiary.toLowerCase().includes(searchTerm.toLowerCase());
+                                                            if (filterCompany === 'ALL') return nameMatch;
+
+                                                            const person = personnelList.find(p => p.name.toUpperCase() === row.beneficiary.toUpperCase());
+                                                            const companyMatch = person ? person.company === filterCompany : false;
+
+                                                            return nameMatch && companyMatch;
+                                                        })
                                                         .map((row, idx) => (
                                                             <tr key={row.id} className="hover:bg-blue-50 group transition-colors">
                                                                 <td className="p-2 text-center text-slate-400 font-mono text-sm">{idx + 1}</td>
@@ -661,6 +687,61 @@ function App() {
                                 >
                                     <Plus className="w-4 h-4 mr-2" /> Thêm Nhân Viên
                                 </button>
+                                <button
+                                    onClick={() => document.getElementById('import-excel')?.click()}
+                                    className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm transition-colors whitespace-nowrap"
+                                >
+                                    <FileSpreadsheet className="w-4 h-4 mr-2" /> Nhập từ Excel
+                                </button>
+                                <input
+                                    type="file"
+                                    id="import-excel"
+                                    accept=".xlsx, .xls"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+
+                                        try {
+                                            const data = await file.arrayBuffer();
+                                            const wb = XLSX.read(data);
+                                            const ws = wb.Sheets[wb.SheetNames[0]];
+                                            const jsonData = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+                                            // Skip header row (index 0), start from index 1
+                                            const newPersonnel: Personnel[] = [];
+                                            for (let i = 1; i < jsonData.length; i++) {
+                                                const row: any = jsonData[i];
+                                                if (row[0]) { // Check if name exists
+                                                    newPersonnel.push({
+                                                        id: generateId(),
+                                                        name: String(row[0]).toUpperCase(),
+                                                        accountNo: row[1] ? String(row[1]) : '',
+                                                        bankName: row[2] ? String(row[2]) : '',
+                                                        company: row[3] ? String(row[3]) : ''
+                                                    });
+                                                }
+                                            }
+
+                                            if (newPersonnel.length > 0) {
+                                                const newList = [...personnelList, ...newPersonnel];
+                                                setPersonnelList(newList);
+                                                const currentData = await api.getData();
+                                                currentData.personnelList = newList;
+                                                await api.saveData(currentData);
+                                                alert(`Đã nhập thành công ${newPersonnel.length} nhân viên!`);
+                                            } else {
+                                                alert("Không tìm thấy dữ liệu hợp lệ trong file Excel.");
+                                            }
+
+                                        } catch (error) {
+                                            console.error("Error importing file:", error);
+                                            alert("Có lỗi khi đọc file Excel.");
+                                        }
+                                        // Reset input
+                                        e.target.value = '';
+                                    }}
+                                />
                             </div>
 
                             <div className="border rounded-lg shadow-sm overflow-hidden">
@@ -854,7 +935,7 @@ function App() {
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 }
 
