@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { api } from './services/api';
-import { Workbook, Sheet, TransactionRow, Personnel } from './types';
+import { Workbook, Sheet, TransactionRow, Personnel, PaymentBatch } from './types';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import {
@@ -734,7 +734,7 @@ function App() {
                         </div>
                     </div>
                 )}
-                )}
+
 
                 {/* Payments View */}
                 {!loading && workbook && view === 'PAYMENTS' && (
@@ -853,3 +853,9 @@ function App() {
                         </div>
                     </div>
                 )}
+            </div>
+        </div>
+    );
+}
+
+export default App;

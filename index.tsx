@@ -4,6 +4,7 @@ import App from './App';
 import './index.css';
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
+  public state: { hasError: boolean, error: any };
   constructor(props: any) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -47,7 +48,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
       );
     }
 
-    return this.props.children;
+    return (this as any).props.children;
   }
 }
 
