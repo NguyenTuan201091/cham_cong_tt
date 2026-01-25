@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { api } from './services/api';
 import { Workbook, Sheet, TransactionRow, Personnel, PaymentBatch } from './types';
 import { TransactionRowItem } from './components/TransactionRowItem';
+import { Toast } from './components/Toast';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import {
@@ -15,8 +16,6 @@ const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 };
 
-const generateId = () => Math.random().toString(36).substr(2, 9);
-
 const formatNumber = (val: number | string | undefined) => {
     if (!val) return '';
     return new Intl.NumberFormat('vi-VN').format(Number(val));
@@ -25,6 +24,8 @@ const formatNumber = (val: number | string | undefined) => {
 const parseNumber = (val: string) => {
     return Number(val.replace(/\./g, ''));
 };
+
+const generateId = () => Math.random().toString(36).substr(2, 9);
 
 
 function App() {
@@ -40,6 +41,7 @@ function App() {
     const [filterCompany, setFilterCompany] = useState<string>('ALL');
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
     const lastSavedData = useRef<string>('');
 
     const companies = useMemo(() => {

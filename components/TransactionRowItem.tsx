@@ -10,6 +10,7 @@ interface TransactionRowItemProps {
     onUpdate: (rowId: string, field: keyof TransactionRow, value: any) => void;
     onDelete: (rowId: string) => void;
     onMove: (rowId: string, direction: 'UP' | 'DOWN') => void;
+    onNotify: (message: string) => void;
 }
 
 const formatCurrency = (amount: number) => {
@@ -42,7 +43,8 @@ export const TransactionRowItem = memo(({
     personnelList,
     onUpdate,
     onDelete,
-    onMove
+    onMove,
+    onNotify
 }: TransactionRowItemProps) => {
 
     const handleBasicSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,11 +57,7 @@ export const TransactionRowItem = memo(({
 
     const handleCopy = (amount: number) => {
         navigator.clipboard.writeText(amount.toString());
-        // Simple visual feedback could be improved, but for now just log or let user know
-        // We can use a temporary alert or custom toast if requested. 
-        // For a quick non-intrusive feedback, maybe just relying on system clipboard?
-        // Let's add a small native notification if supported or just standard alert for clarity as requested.
-        alert(`Đã copy: ${formatNumber(amount)}`);
+        onNotify(`Đã copy: ${formatNumber(amount)}`);
     };
 
     return (
