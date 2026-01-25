@@ -428,7 +428,7 @@ function App() {
                     <div className="flex flex-1 flex-col md:flex-row overflow-hidden">
 
                         {/* Sidebar / Tabs */}
-                        <div className="w-full md:w-64 bg-slate-50 border-r border-slate-200 flex flex-col">
+                        <div className="w-full md:w-52 bg-slate-50 border-r border-slate-200 flex flex-col">
                             <div className="p-3 font-semibold text-xs text-slate-500 uppercase tracking-wider">
                                 Danh Sách Sheets
                             </div>
@@ -438,7 +438,7 @@ function App() {
                                         key={sheet.id}
                                         onClick={() => setActiveSheetId(sheet.id)}
                                         className={`
-                                            group flex items-center justify-between px-4 py-3 cursor-pointer border-l-4 transition-all
+                                            group flex items-center justify-between px-3 py-2 cursor-pointer border-l-4 transition-all
                                             ${activeSheetId === sheet.id
                                                 ? 'bg-white border-blue-600 text-blue-700 shadow-sm'
                                                 : 'border-transparent text-slate-600 hover:bg-slate-100 hover:border-slate-300'}
@@ -530,7 +530,7 @@ function App() {
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-12 text-center">STT</th>
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-48">Số Tài Khoản</th>
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-32">Ngân Hàng</th>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-64">Tên Thụ Hưởng</th>
+                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-96">Tên Thụ Hưởng</th>
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-40 text-right">Lương CB</th>
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-40 text-right">Lương Ngoài</th>
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-40 text-right">Tổng Tiền</th>
@@ -576,7 +576,7 @@ function App() {
                                                                 </td>
                                                                 <td className="p-2">
                                                                     <input
-                                                                        className="w-full bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none font-medium uppercase text-sm"
+                                                                        className="w-full bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none font-bold text-slate-900 uppercase text-lg"
                                                                         value={row.beneficiary}
                                                                         list="personnel-suggestions"
                                                                         onChange={(e) => updateRow(activeSheet.id, row.id, 'beneficiary', e.target.value.toUpperCase())}
