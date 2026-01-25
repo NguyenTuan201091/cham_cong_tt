@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import {
     Plus, Trash2, Download, FileSpreadsheet,
-    ChevronRight, ChevronLeft, Settings, Layout, Users,
+    ChevronRight, ChevronLeft, Settings, Layout, Users, ArrowUp, ArrowDown,
     CreditCard, Calendar, Save, Moon, Sun, Monitor,
     Copy, Building2, Briefcase, User, Wallet, Search
 } from 'lucide-react';
@@ -15,6 +15,16 @@ const formatCurrency = (amount: number) => {
 };
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
+
+const formatNumber = (val: number | string | undefined) => {
+    if (!val) return '';
+    return new Intl.NumberFormat('vi-VN').format(Number(val));
+};
+
+const parseNumber = (val: string) => {
+    return Number(val.replace(/\./g, ''));
+};
+
 
 function App() {
     const [month, setMonth] = useState(new Date().getMonth() + 1);
@@ -200,6 +210,24 @@ function App() {
         });
         await handleSave({ ...workbook, sheets: updatedSheets });
     }
+
+    const moveRow = async (sheetId: string, rowId: string, direction: 'UP' | 'DOWN') => {
+        if (!workbook) return;
+        const updatedSheets = workbook.sheets.map(sheet => {
+            if (sheet.id !== sheetId) return sheet;
+            const rowIndex = sheet.rows.findIndex(r => r.id === rowId);
+            if (rowIndex === -1) return sheet;
+
+            const newRows = [...sheet.rows];
+            if (direction === 'UP' && rowIndex > 0) {
+                [newRows[rowIndex], newRows[rowIndex - 1]] = [newRows[rowIndex - 1], newRows[rowIndex]];
+            } else if (direction === 'DOWN' && rowIndex < newRows.length - 1) {
+                [newRows[rowIndex], newRows[rowIndex + 1]] = [newRows[rowIndex + 1], newRows[rowIndex]];
+            }
+            return { ...sheet, rows: newRows };
+        });
+        await handleSave({ ...workbook, sheets: updatedSheets });
+    };
 
     // Personnel Operations
     const addPersonnel = async () => {
@@ -557,7 +585,7 @@ function App() {
                                                         ))}
                                                         <th className="p-3 border-b text-xs font-bold text-red-500 uppercase w-32 text-right">Còn Lại</th>
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase">Ghi Chú</th>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-12"></th>
+                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-24 text-center">Tác Vụ</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100">
@@ -606,19 +634,19 @@ function App() {
                                                                 </td>
                                                                 <td className="p-2">
                                                                     <input
-                                                                        type="number"
+                                                                        type="text"
                                                                         className="w-full bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none text-right font-mono text-sm"
-                                                                        value={row.basicSalary || ''}
-                                                                        onChange={(e) => updateRow(activeSheet.id, row.id, 'basicSalary', Number(e.target.value))}
+                                                                        value={formatNumber(row.basicSalary)}
+                                                                        onChange={(e) => updateRow(activeSheet.id, row.id, 'basicSalary', parseNumber(e.target.value))}
                                                                         onFocus={(e) => e.target.select()}
                                                                     />
                                                                 </td>
                                                                 <td className="p-2">
                                                                     <input
-                                                                        type="number"
+                                                                        type="text"
                                                                         className="w-full bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none text-right font-mono text-sm"
-                                                                        value={row.extraSalary || ''}
-                                                                        onChange={(e) => updateRow(activeSheet.id, row.id, 'extraSalary', Number(e.target.value))}
+                                                                        value={formatNumber(row.extraSalary)}
+                                                                        onChange={(e) => updateRow(activeSheet.id, row.id, 'extraSalary', parseNumber(e.target.value))}
                                                                         onFocus={(e) => e.target.select()}
                                                                     />
                                                                 </td>
@@ -645,10 +673,25 @@ function App() {
                                                                         placeholder="Chi tiết..."
                                                                     />
                                                                 </td>
-                                                                <td className="p-2 text-center">
+                                                                <td className="p-2 text-center flex items-center justify-center gap-1 group-hover:opacity-100 opacity-0 transition-opacity">
+                                                                    <button
+                                                                        onClick={() => moveRow(activeSheet.id, row.id, 'UP')}
+                                                                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                                                                        title="Lên"
+                                                                    >
+                                                                        <ArrowUp className="w-4 h-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => moveRow(activeSheet.id, row.id, 'DOWN')}
+                                                                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                                                                        title="Xuống"
+                                                                    >
+                                                                        <ArrowDown className="w-4 h-4" />
+                                                                    </button>
                                                                     <button
                                                                         onClick={() => deleteRow(activeSheet.id, row.id)}
-                                                                        className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                                                        className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-all ml-1"
+                                                                        title="Xóa"
                                                                     >
                                                                         <Trash2 className="w-4 h-4" />
                                                                     </button>
