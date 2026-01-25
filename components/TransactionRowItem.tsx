@@ -101,7 +101,9 @@ export const TransactionRowItem = memo(({
                     className="w-full bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none text-right font-mono text-sm"
                     value={formatNumber(row.basicSalary)}
                     onChange={handleBasicSalaryChange}
+                    onDoubleClick={() => handleCopy(Number(row.basicSalary) || 0)}
                     onFocus={(e) => e.target.select()}
+                    title="Double click để copy"
                 />
             </td>
             <td className="p-2">
@@ -110,15 +112,17 @@ export const TransactionRowItem = memo(({
                     className="w-full bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none text-right font-mono text-sm"
                     value={formatNumber(row.extraSalary)}
                     onChange={handleExtraSalaryChange}
+                    onDoubleClick={() => handleCopy(Number(row.extraSalary) || 0)}
                     onFocus={(e) => e.target.select()}
+                    title="Double click để copy"
                 />
             </td>
             <td
                 className="p-2 text-right font-bold text-emerald-600 text-sm cursor-pointer hover:text-emerald-700 active:scale-95 transition-all select-none"
-                onDoubleClick={() => handleCopy(Number(row.basicSalary) + Number(row.extraSalary))}
+                onDoubleClick={() => handleCopy((Number(row.basicSalary) || 0) + (Number(row.extraSalary) || 0))}
                 title="Double click để copy"
             >
-                {formatCurrency(Number(row.basicSalary) + Number(row.extraSalary))}
+                {formatCurrency((Number(row.basicSalary) || 0) + (Number(row.extraSalary) || 0))}
             </td>
 
             {/* Dynamic Payment Columns */}
@@ -135,10 +139,10 @@ export const TransactionRowItem = memo(({
 
             <td
                 className="p-2 text-right font-bold text-red-500 text-sm cursor-pointer hover:text-red-700 active:scale-95 transition-all select-none"
-                onDoubleClick={() => handleCopy(getRemaining(row))}
+                onDoubleClick={() => handleCopy(getRemaining(row) || 0)}
                 title="Double click để copy"
             >
-                {formatCurrency(getRemaining(row))}
+                {formatCurrency(getRemaining(row) || 0)}
             </td>
 
             <td className="p-2">
