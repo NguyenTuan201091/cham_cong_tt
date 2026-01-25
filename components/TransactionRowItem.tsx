@@ -53,6 +53,15 @@ export const TransactionRowItem = memo(({
         onUpdate(row.id, 'extraSalary', parseNumber(e.target.value));
     };
 
+    const handleCopy = (amount: number) => {
+        navigator.clipboard.writeText(amount.toString());
+        // Simple visual feedback could be improved, but for now just log or let user know
+        // We can use a temporary alert or custom toast if requested. 
+        // For a quick non-intrusive feedback, maybe just relying on system clipboard?
+        // Let's add a small native notification if supported or just standard alert for clarity as requested.
+        alert(`Đã copy: ${formatNumber(amount)}`);
+    };
+
     return (
         <tr className="hover:bg-blue-50 group transition-colors">
             <td className="p-2 text-center text-slate-400 font-mono text-sm">{index + 1}</td>
@@ -104,18 +113,31 @@ export const TransactionRowItem = memo(({
                     onFocus={(e) => e.target.select()}
                 />
             </td>
-            <td className="p-2 text-right font-bold text-emerald-600 text-sm">
+            <td
+                className="p-2 text-right font-bold text-emerald-600 text-sm cursor-pointer hover:text-emerald-700 active:scale-95 transition-all select-none"
+                onDoubleClick={() => handleCopy(Number(row.basicSalary) + Number(row.extraSalary))}
+                title="Double click để copy"
+            >
                 {formatCurrency(Number(row.basicSalary) + Number(row.extraSalary))}
             </td>
 
             {/* Dynamic Payment Columns */}
             {paymentBatches?.map(batch => (
-                <td key={batch.id} className="p-2 text-right font-mono text-sm text-blue-600 bg-blue-50/30">
+                <td
+                    key={batch.id}
+                    className="p-2 text-right font-mono text-sm text-blue-600 bg-blue-50/30 cursor-pointer hover:bg-blue-100 transition-colors select-none"
+                    onDoubleClick={() => handleCopy(row.payments?.[batch.id] || 0)}
+                    title="Double click để copy"
+                >
                     {formatCurrency(row.payments?.[batch.id] || 0)}
                 </td>
             ))}
 
-            <td className="p-2 text-right font-bold text-red-500 text-sm">
+            <td
+                className="p-2 text-right font-bold text-red-500 text-sm cursor-pointer hover:text-red-700 active:scale-95 transition-all select-none"
+                onDoubleClick={() => handleCopy(getRemaining(row))}
+                title="Double click để copy"
+            >
                 {formatCurrency(getRemaining(row))}
             </td>
 
