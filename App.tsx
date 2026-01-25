@@ -961,7 +961,11 @@ function App() {
                         </div>
                     </div>
                 )}
+                )}
             </div>
+
+            {/* Toast Notification */}
+            <Toast message={toastMessage} onClose={() => setToastMessage(null)} />
         </div >
     );
 }
