@@ -961,7 +961,6 @@ function App() {
                         </div>
                     </div>
                 )}
-                )}
             </div>
 
             {/* Toast Notification */}
