@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { api } from './services/api';
 import { Workbook, Sheet, TransactionRow, Personnel, PaymentBatch } from './types';
+import { TransactionRowItem } from './components/TransactionRowItem';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import {
     Plus, Trash2, Download, FileSpreadsheet,
     ChevronRight, ChevronLeft, Settings, Layout, Users, ArrowUp, ArrowDown,
     CreditCard, Calendar, Save, Moon, Sun, Monitor,
-    Copy, Building2, Briefcase, User, Wallet, Search
+    Copy, Building2, Briefcase, User, Wallet, Search, Loader2
 } from 'lucide-react';
 
 const formatCurrency = (amount: number) => {
@@ -38,6 +39,8 @@ function App() {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterCompany, setFilterCompany] = useState<string>('ALL');
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const lastSavedData = useRef<string>('');
 
     const companies = useMemo(() => {
         const unique = new Set(personnelList.map(p => p.company).filter(Boolean));
@@ -57,6 +60,8 @@ function App() {
 
         const wb = await api.getWorkbook(month, year);
         setWorkbook(wb);
+        lastSavedData.current = JSON.stringify(wb); // Initialize saving ref
+
         if (wb.sheets.length > 0 && !activeSheetId) {
             setActiveSheetId(wb.sheets[0].id);
         } else if (wb.sheets.length === 0) {
@@ -65,9 +70,25 @@ function App() {
         setLoading(false);
     };
 
-    const handleSave = async (updatedWorkbook: Workbook) => {
+    // Debounced Auto-save
+    useEffect(() => {
+        if (!workbook) return;
+        const currentData = JSON.stringify(workbook);
+        if (currentData === lastSavedData.current) return;
+
+        setIsSaving(true);
+        const timer = setTimeout(async () => {
+            await api.saveWorkbook(workbook);
+            lastSavedData.current = currentData;
+            setIsSaving(false);
+        }, 5000);
+
+        return () => clearTimeout(timer);
+    }, [workbook]);
+
+    const updateWorkbookState = (updatedWorkbook: Workbook) => {
         setWorkbook(updatedWorkbook);
-        await api.saveWorkbook(updatedWorkbook);
+        // Persistence handled by useEffect
     };
 
     const copyFromPreviousMonth = async () => {
@@ -102,7 +123,7 @@ function App() {
 
         if (workbook) {
             const updated = { ...workbook, sheets: newSheets };
-            await handleSave(updated);
+            updateWorkbookState(updated);
             if (newSheets.length > 0) setActiveSheetId(newSheets[0].id);
         }
         setLoading(false);
@@ -123,7 +144,7 @@ function App() {
         };
 
         const updated = { ...workbook, sheets: [...workbook.sheets, newSheet] };
-        await handleSave(updated);
+        updateWorkbookState(updated);
         setActiveSheetId(newSheet.id);
     };
 
@@ -133,7 +154,7 @@ function App() {
             ...workbook,
             sheets: workbook.sheets.filter(s => s.id !== id)
         };
-        await handleSave(updated);
+        updateWorkbookState(updated);
         if (activeSheetId === id) {
             setActiveSheetId(updated.sheets[0]?.id || null);
         }
@@ -151,83 +172,91 @@ function App() {
             ...workbook,
             sheets: workbook.sheets.map(s => s.id === id ? { ...s, name } : s)
         };
-        await handleSave(updated);
+        updateWorkbookState(updated);
     }
 
-    // Row Operations
-    const updateRow = async (sheetId: string, rowId: string, field: keyof TransactionRow, value: any) => {
-        if (!workbook) return;
+    // Row Operations - Optimized with useCallback and functional updates
+    const updateRow = useCallback((sheetId: string, rowId: string, field: keyof TransactionRow, value: any) => {
+        setWorkbook(prev => {
+            if (!prev) return prev;
 
-        const updatedSheets = workbook.sheets.map(sheet => {
-            if (sheet.id !== sheetId) return sheet;
+            const updatedSheets = prev.sheets.map(sheet => {
+                if (sheet.id !== sheetId) return sheet;
 
-            const updatedRows = sheet.rows.map(row => {
-                if (row.id !== rowId) return row;
+                const updatedRows = sheet.rows.map(row => {
+                    if (row.id !== rowId) return row;
 
-                let newRow = { ...row, [field]: value };
+                    let newRow = { ...row, [field]: value };
 
-                // Auto-fill logic
-                if (field === 'beneficiary') {
-                    const person = personnelList.find(p => p.name.toLowerCase() === (value as string).toLowerCase());
-                    if (person) {
-                        newRow.accountNo = person.accountNo;
-                        newRow.bankName = person.bankName;
+                    // Auto-fill logic
+                    if (field === 'beneficiary') {
+                        const person = personnelList.find(p => p.name.toLowerCase() === (value as string).toLowerCase());
+                        if (person) {
+                            newRow.accountNo = person.accountNo;
+                            newRow.bankName = person.bankName;
+                        }
                     }
-                }
 
-                return newRow;
+                    return newRow;
+                });
+                return { ...sheet, rows: updatedRows };
             });
-            return { ...sheet, rows: updatedRows };
+
+            return { ...prev, sheets: updatedSheets };
         });
+    }, [personnelList]);
 
-        await handleSave({ ...workbook, sheets: updatedSheets });
-    };
-
-    const addRow = async (sheetId: string) => {
-        if (!workbook) return;
-        const updatedSheets = workbook.sheets.map(sheet => {
-            if (sheet.id !== sheetId) return sheet;
-            const newRow: TransactionRow = {
-                id: generateId(),
-                accountNo: '',
-                bankName: 'MB',
-                beneficiary: '',
-                basicSalary: 0,
-                extraSalary: 0,
-                note: '',
-                payments: {}
-            };
-            return { ...sheet, rows: [...sheet.rows, newRow] };
+    const addRow = useCallback((sheetId: string) => {
+        setWorkbook(prev => {
+            if (!prev) return prev;
+            const updatedSheets = prev.sheets.map(sheet => {
+                if (sheet.id !== sheetId) return sheet;
+                const newRow: TransactionRow = {
+                    id: generateId(),
+                    accountNo: '',
+                    bankName: 'MB',
+                    beneficiary: '',
+                    basicSalary: 0,
+                    extraSalary: 0,
+                    note: '',
+                    payments: {}
+                };
+                return { ...sheet, rows: [...sheet.rows, newRow] };
+            });
+            return { ...prev, sheets: updatedSheets };
         });
-        await handleSave({ ...workbook, sheets: updatedSheets });
-    }
+    }, []);
 
-    const deleteRow = async (sheetId: string, rowId: string) => {
-        if (!workbook) return;
-        const updatedSheets = workbook.sheets.map(sheet => {
-            if (sheet.id !== sheetId) return sheet;
-            return { ...sheet, rows: sheet.rows.filter(r => r.id !== rowId) };
+    const deleteRow = useCallback((sheetId: string, rowId: string) => {
+        setWorkbook(prev => {
+            if (!prev) return prev;
+            const updatedSheets = prev.sheets.map(sheet => {
+                if (sheet.id !== sheetId) return sheet;
+                return { ...sheet, rows: sheet.rows.filter(r => r.id !== rowId) };
+            });
+            return { ...prev, sheets: updatedSheets };
         });
-        await handleSave({ ...workbook, sheets: updatedSheets });
-    }
+    }, []);
 
-    const moveRow = async (sheetId: string, rowId: string, direction: 'UP' | 'DOWN') => {
-        if (!workbook) return;
-        const updatedSheets = workbook.sheets.map(sheet => {
-            if (sheet.id !== sheetId) return sheet;
-            const rowIndex = sheet.rows.findIndex(r => r.id === rowId);
-            if (rowIndex === -1) return sheet;
+    const moveRow = useCallback((sheetId: string, rowId: string, direction: 'UP' | 'DOWN') => {
+        setWorkbook(prev => {
+            if (!prev) return prev;
+            const updatedSheets = prev.sheets.map(sheet => {
+                if (sheet.id !== sheetId) return sheet;
+                const rowIndex = sheet.rows.findIndex(r => r.id === rowId);
+                if (rowIndex === -1) return sheet;
 
-            const newRows = [...sheet.rows];
-            if (direction === 'UP' && rowIndex > 0) {
-                [newRows[rowIndex], newRows[rowIndex - 1]] = [newRows[rowIndex - 1], newRows[rowIndex]];
-            } else if (direction === 'DOWN' && rowIndex < newRows.length - 1) {
-                [newRows[rowIndex], newRows[rowIndex + 1]] = [newRows[rowIndex + 1], newRows[rowIndex]];
-            }
-            return { ...sheet, rows: newRows };
+                const newRows = [...sheet.rows];
+                if (direction === 'UP' && rowIndex > 0) {
+                    [newRows[rowIndex], newRows[rowIndex - 1]] = [newRows[rowIndex - 1], newRows[rowIndex]];
+                } else if (direction === 'DOWN' && rowIndex < newRows.length - 1) {
+                    [newRows[rowIndex], newRows[rowIndex + 1]] = [newRows[rowIndex + 1], newRows[rowIndex]];
+                }
+                return { ...sheet, rows: newRows };
+            });
+            return { ...prev, sheets: updatedSheets };
         });
-        await handleSave({ ...workbook, sheets: updatedSheets });
-    };
+    }, []);
 
     // Personnel Operations
     const addPersonnel = async () => {
@@ -281,7 +310,7 @@ function App() {
             };
             return { ...sheet, paymentBatches: [...(sheet.paymentBatches || []), newBatch] };
         });
-        await handleSave({ ...workbook, sheets: updatedSheets });
+        updateWorkbookState({ ...workbook, sheets: updatedSheets });
         setActiveSheetId(sheetId); // Ensure we stay on/switch to this sheet
     };
 
@@ -296,7 +325,7 @@ function App() {
             });
             return { ...sheet, rows: updatedRows };
         });
-        await handleSave({ ...workbook, sheets: updatedSheets });
+        updateWorkbookState({ ...workbook, sheets: updatedSheets });
     };
 
     // Helpers
@@ -384,6 +413,19 @@ function App() {
 
     const activeSheet = workbook?.sheets.find(s => s.id === activeSheetId);
 
+    // Stable Handlers for Row Item
+    const handleRowUpdate = useCallback((rowId: string, field: keyof TransactionRow, value: any) => {
+        if (activeSheetId) updateRow(activeSheetId, rowId, field, value);
+    }, [activeSheetId, updateRow]);
+
+    const handleRowDelete = useCallback((rowId: string) => {
+        if (activeSheetId) deleteRow(activeSheetId, rowId);
+    }, [activeSheetId, deleteRow]);
+
+    const handleRowMove = useCallback((rowId: string, direction: 'UP' | 'DOWN') => {
+        if (activeSheetId) moveRow(activeSheetId, rowId, direction);
+    }, [activeSheetId, moveRow]);
+
     return (
         <div className="min-h-screen bg-slate-100 p-4">
             <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-lg border border-slate-200 min-h-[80vh] flex flex-col">
@@ -446,6 +488,17 @@ function App() {
                         >
                             <Download className="w-4 h-4 mr-2" /> Xuất Excel
                         </button>
+                    </div>
+                </div>
+
+                {/* Saving Indicator */}
+                <div className={`
+                    fixed bottom-4 right-4 z-50 transition-all duration-300 transform
+                    ${isSaving ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}
+                `}>
+                    <div className="bg-white px-4 py-2 rounded-lg shadow-lg border border-blue-100 flex items-center text-blue-600 font-medium">
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Đang lưu...
                     </div>
                 </div>
 
@@ -600,103 +653,16 @@ function App() {
                                                             return nameMatch && companyMatch;
                                                         })
                                                         .map((row, idx) => (
-                                                            <tr key={row.id} className="hover:bg-blue-50 group transition-colors">
-                                                                <td className="p-2 text-center text-slate-400 font-mono text-sm">{idx + 1}</td>
-                                                                <td className="p-2">
-                                                                    <input
-                                                                        className="w-full bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none text-sm font-mono"
-                                                                        value={row.accountNo}
-                                                                        onChange={(e) => updateRow(activeSheet.id, row.id, 'accountNo', e.target.value)}
-                                                                        placeholder="VD: 090..."
-                                                                    />
-                                                                </td>
-                                                                <td className="p-2">
-                                                                    <input
-                                                                        className="w-full bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none text-sm"
-                                                                        value={row.bankName}
-                                                                        onChange={(e) => updateRow(activeSheet.id, row.id, 'bankName', e.target.value)}
-                                                                        placeholder="MB, VCB..."
-                                                                    />
-                                                                </td>
-                                                                <td className="p-2">
-                                                                    <input
-                                                                        className="w-full bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none font-bold text-slate-900 uppercase text-sm"
-                                                                        value={row.beneficiary}
-                                                                        list="personnel-suggestions"
-                                                                        onChange={(e) => updateRow(activeSheet.id, row.id, 'beneficiary', e.target.value.toUpperCase())}
-                                                                        placeholder="NGUYEN VAN A"
-                                                                    />
-                                                                    <datalist id="personnel-suggestions">
-                                                                        {personnelList.map(p => (
-                                                                            <option key={p.id} value={p.name}>{p.company}</option>
-                                                                        ))}
-                                                                    </datalist>
-                                                                </td>
-                                                                <td className="p-2">
-                                                                    <input
-                                                                        type="text"
-                                                                        className="w-full bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none text-right font-mono text-sm"
-                                                                        value={formatNumber(row.basicSalary)}
-                                                                        onChange={(e) => updateRow(activeSheet.id, row.id, 'basicSalary', parseNumber(e.target.value))}
-                                                                        onFocus={(e) => e.target.select()}
-                                                                    />
-                                                                </td>
-                                                                <td className="p-2">
-                                                                    <input
-                                                                        type="text"
-                                                                        className="w-full bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none text-right font-mono text-sm"
-                                                                        value={formatNumber(row.extraSalary)}
-                                                                        onChange={(e) => updateRow(activeSheet.id, row.id, 'extraSalary', parseNumber(e.target.value))}
-                                                                        onFocus={(e) => e.target.select()}
-                                                                    />
-                                                                </td>
-                                                                <td className="p-2 text-right font-bold text-emerald-600 text-sm">
-                                                                    {formatCurrency(Number(row.basicSalary) + Number(row.extraSalary))}
-                                                                </td>
-
-                                                                {/* Dynamic Payment Columns */}
-                                                                {activeSheet.paymentBatches?.map(batch => (
-                                                                    <td key={batch.id} className="p-2 text-right font-mono text-sm text-blue-600 bg-blue-50/30">
-                                                                        {formatCurrency(row.payments?.[batch.id] || 0)}
-                                                                    </td>
-                                                                ))}
-
-                                                                <td className="p-2 text-right font-bold text-red-500 text-sm">
-                                                                    {formatCurrency(getRemaining(row))}
-                                                                </td>
-
-                                                                <td className="p-2">
-                                                                    <input
-                                                                        className="w-full bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none text-sm"
-                                                                        value={row.note}
-                                                                        onChange={(e) => updateRow(activeSheet.id, row.id, 'note', e.target.value)}
-                                                                        placeholder="Chi tiết..."
-                                                                    />
-                                                                </td>
-                                                                <td className="p-2 text-center flex items-center justify-center gap-1 group-hover:opacity-100 opacity-0 transition-opacity">
-                                                                    <button
-                                                                        onClick={() => moveRow(activeSheet.id, row.id, 'UP')}
-                                                                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                                                                        title="Lên"
-                                                                    >
-                                                                        <ArrowUp className="w-4 h-4" />
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => moveRow(activeSheet.id, row.id, 'DOWN')}
-                                                                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                                                                        title="Xuống"
-                                                                    >
-                                                                        <ArrowDown className="w-4 h-4" />
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => deleteRow(activeSheet.id, row.id)}
-                                                                        className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-all ml-1"
-                                                                        title="Xóa"
-                                                                    >
-                                                                        <Trash2 className="w-4 h-4" />
-                                                                    </button>
-                                                                </td>
-                                                            </tr>
+                                                            <TransactionRowItem
+                                                                key={row.id}
+                                                                row={row}
+                                                                index={idx}
+                                                                paymentBatches={activeSheet.paymentBatches || []}
+                                                                personnelList={personnelList}
+                                                                onUpdate={handleRowUpdate}
+                                                                onDelete={handleRowDelete}
+                                                                onMove={handleRowMove}
+                                                            />
                                                         ))}
                                                 </tbody>
                                             </table>
