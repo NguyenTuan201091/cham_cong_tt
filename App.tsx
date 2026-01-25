@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import {
     Plus, Trash2, Download, FileSpreadsheet,
-    ChevronRight, Settings, Layout, Users,
+    ChevronRight, ChevronLeft, Settings, Layout, Users,
     CreditCard, Calendar, Save, Moon, Sun, Monitor,
     Copy, Building2, Briefcase, User, Wallet, Search
 } from 'lucide-react';
@@ -27,6 +27,7 @@ function App() {
     const [activeBatchId, setActiveBatchId] = useState<string | null>(null); // For Payment View
     const [searchTerm, setSearchTerm] = useState('');
     const [filterCompany, setFilterCompany] = useState<string>('ALL');
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
     const companies = useMemo(() => {
         const unique = new Set(personnelList.map(p => p.company).filter(Boolean));
@@ -428,9 +429,19 @@ function App() {
                     <div className="flex flex-1 flex-col md:flex-row overflow-hidden">
 
                         {/* Sidebar / Tabs */}
-                        <div className="w-full md:w-52 bg-slate-50 border-r border-slate-200 flex flex-col">
-                            <div className="p-3 font-semibold text-xs text-slate-500 uppercase tracking-wider">
-                                Danh Sách Sheets
+                        <div className={`
+                            bg-slate-50 border-r border-slate-200 flex flex-col transition-all duration-300
+                            ${isSidebarCollapsed ? 'w-16' : 'w-full md:w-64'}
+                        `}>
+                            <div className="p-3 font-semibold text-xs text-slate-500 uppercase tracking-wider flex justify-between items-center h-12">
+                                {!isSidebarCollapsed && <span>Danh Sách Sheets</span>}
+                                <button
+                                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                                    className="p-1 hover:bg-slate-200 rounded text-slate-500 ml-auto"
+                                    title={isSidebarCollapsed ? "Mở rộng" : "Thu gọn"}
+                                >
+                                    {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                                </button>
                             </div>
                             <div className="flex-1 overflow-y-auto">
                                 {workbook.sheets.map(sheet => (
@@ -443,27 +454,30 @@ function App() {
                                                 ? 'bg-white border-blue-600 text-blue-700 shadow-sm'
                                                 : 'border-transparent text-slate-600 hover:bg-slate-100 hover:border-slate-300'}
                                         `}
+                                        title={sheet.name}
                                     >
                                         <div className="flex items-center overflow-hidden">
                                             {activeSheetId === sheet.id ? <Building2 className="w-4 h-4 mr-2 flex-shrink-0" /> : <Briefcase className="w-4 h-4 mr-2 flex-shrink-0 text-slate-400" />}
-                                            <span className="truncate font-medium">{sheet.name}</span>
+                                            {!isSidebarCollapsed && <span className="truncate font-medium">{sheet.name}</span>}
                                         </div>
-                                        <div className="flex opacity-0 group-hover:opacity-100 transition-opacity gap-1">
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); renameSheet(sheet.id); }}
-                                                className="p-1 hover:bg-blue-100 rounded text-blue-600"
-                                                title="Đổi tên"
-                                            >
-                                                <Settings className="w-3 h-3" />
-                                            </button>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); deleteSheet(sheet.id); }}
-                                                className="p-1 hover:bg-red-100 rounded text-red-600"
-                                                title="Xóa"
-                                            >
-                                                <Trash2 className="w-3 h-3" />
-                                            </button>
-                                        </div>
+                                        {!isSidebarCollapsed && (
+                                            <div className="flex opacity-0 group-hover:opacity-100 transition-opacity gap-1">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); renameSheet(sheet.id); }}
+                                                    className="p-1 hover:bg-blue-100 rounded text-blue-600"
+                                                    title="Đổi tên"
+                                                >
+                                                    <Settings className="w-3 h-3" />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); deleteSheet(sheet.id); }}
+                                                    className="p-1 hover:bg-red-100 rounded text-red-600"
+                                                    title="Xóa"
+                                                >
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -471,8 +485,10 @@ function App() {
                                 <button
                                     onClick={addSheet}
                                     className="w-full flex justify-center items-center py-2 border-2 border-dashed border-slate-300 rounded-lg text-slate-500 hover:border-blue-500 hover:text-blue-600 transition-all font-medium"
+                                    title="Thêm Sheet"
                                 >
-                                    <Plus className="w-4 h-4 mr-2" /> Thêm Sheet
+                                    <Plus className="w-4 h-4" />
+                                    {!isSidebarCollapsed && <span className="ml-2">Thêm Sheet</span>}
                                 </button>
                             </div>
                         </div>
@@ -576,7 +592,7 @@ function App() {
                                                                 </td>
                                                                 <td className="p-2">
                                                                     <input
-                                                                        className="w-full bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none font-bold text-slate-900 uppercase text-lg"
+                                                                        className="w-full bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none font-bold text-slate-900 uppercase text-sm"
                                                                         value={row.beneficiary}
                                                                         list="personnel-suggestions"
                                                                         onChange={(e) => updateRow(activeSheet.id, row.id, 'beneficiary', e.target.value.toUpperCase())}
