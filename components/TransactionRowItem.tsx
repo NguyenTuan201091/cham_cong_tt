@@ -56,7 +56,7 @@ export const TransactionRowItem = memo(({
     } = useSortable({ id: row.id });
 
     const style = {
-        transform: CSS.Transform.toString(transform),
+        transform: CSS.Translate.toString(transform),
         transition,
         zIndex: isDragging ? 10 : 'auto',
         position: isDragging ? 'relative' as const : undefined,

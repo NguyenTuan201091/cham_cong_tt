@@ -20,6 +20,7 @@ import {
     useSensors,
     DragEndEvent
 } from '@dnd-kit/core';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import {
     arrayMove,
     SortableContext,
@@ -698,6 +699,7 @@ function App() {
                                                         sensors={sensors}
                                                         collisionDetection={closestCenter}
                                                         onDragEnd={handleDragEnd}
+                                                        modifiers={[restrictToVerticalAxis]}
                                                     >
                                                         <SortableContext
                                                             items={activeSheet.rows.map(r => r.id)}
@@ -722,6 +724,7 @@ function App() {
                                                                         onUpdate={handleRowUpdate}
                                                                         onDelete={handleRowDelete}
                                                                         onMove={handleRowMove}
+                                                                        onNotify={(msg) => setToastMessage(msg)}
                                                                     />
                                                                 ))}
                                                         </SortableContext>
