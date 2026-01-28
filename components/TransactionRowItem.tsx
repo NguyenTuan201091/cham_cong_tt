@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { TransactionRow, Personnel, PaymentBatch } from '../types';
-import { Trash2, GripVertical } from 'lucide-react';
+import { Trash2, GripVertical, ListOrdered } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -11,6 +11,7 @@ interface TransactionRowItemProps {
     onUpdate: (rowId: string, field: keyof TransactionRow, value: any) => void;
     onDelete: (rowId: string) => void;
     onMove: (rowId: string, direction: 'UP' | 'DOWN') => void;
+    onMoveToPosition: (rowId: string, position: number) => void;
     onNotify: (message: string) => void;
 }
 
@@ -44,6 +45,7 @@ export const TransactionRowItem = memo(({
     onUpdate,
     onDelete,
     onMove,
+    onMoveToPosition,
     onNotify }: TransactionRowItemProps) => {
 
     const {
@@ -69,6 +71,16 @@ export const TransactionRowItem = memo(({
 
     const handleExtraSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         onUpdate(row.id, 'extraSalary', parseNumber(e.target.value));
+    };
+
+    const handleJumpToPosition = () => {
+        const target = prompt("Nhập số thứ tự muốn chuyển đến (VD: 5):", (index + 1).toString());
+        if (target) {
+            const pos = parseInt(target, 10);
+            if (!isNaN(pos)) {
+                onMoveToPosition(row.id, pos);
+            }
+        }
     };
 
     const handleCopy = (amount: number) => {
@@ -167,6 +179,13 @@ export const TransactionRowItem = memo(({
                 />
             </td>
             <td className="p-2 text-center flex items-center justify-center gap-1 group-hover:opacity-100 opacity-0 transition-opacity">
+                <button
+                    onClick={handleJumpToPosition}
+                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                    title="Chuyển nhanh đến STT..."
+                >
+                    <ListOrdered className="w-4 h-4" />
+                </button>
                 <button
                     {...attributes}
                     {...listeners}

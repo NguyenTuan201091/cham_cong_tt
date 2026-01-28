@@ -288,6 +288,29 @@ function App() {
         });
     }, []);
 
+    const moveRowToAbsoluteIndex = useCallback((sheetId: string, rowId: string, targetStt: number) => {
+        setWorkbook(prev => {
+            if (!prev) return prev;
+            const updatedSheets = prev.sheets.map(sheet => {
+                if (sheet.id !== sheetId) return sheet;
+
+                const fromIndex = sheet.rows.findIndex(r => r.id === rowId);
+                if (fromIndex === -1) return sheet;
+
+                // Clamp index
+                let toIndex = targetStt - 1;
+                if (toIndex < 0) toIndex = 0;
+                if (toIndex >= sheet.rows.length) toIndex = sheet.rows.length - 1;
+
+                if (fromIndex === toIndex) return sheet;
+
+                const newRows = arrayMove(sheet.rows, fromIndex, toIndex);
+                return { ...sheet, rows: newRows };
+            });
+            return { ...prev, sheets: updatedSheets };
+        });
+    }, []);
+
     // Personnel Operations
     const addPersonnel = async () => {
         const newPerson: Personnel = {
@@ -455,6 +478,10 @@ function App() {
     const handleRowMove = useCallback((rowId: string, direction: 'UP' | 'DOWN') => {
         if (activeSheetId) moveRow(activeSheetId, rowId, direction);
     }, [activeSheetId, moveRow]);
+
+    const handleRowMoveToPosition = useCallback((rowId: string, targetStt: number) => {
+        if (activeSheetId) moveRowToAbsoluteIndex(activeSheetId, rowId, targetStt);
+    }, [activeSheetId, moveRowToAbsoluteIndex]);
 
     // DnD Sensors
     const sensors = useSensors(
@@ -724,6 +751,7 @@ function App() {
                                                                         onUpdate={handleRowUpdate}
                                                                         onDelete={handleRowDelete}
                                                                         onMove={handleRowMove}
+                                                                        onMoveToPosition={handleRowMoveToPosition}
                                                                         onNotify={(msg) => setToastMessage(msg)}
                                                                     />
                                                                 ))}
