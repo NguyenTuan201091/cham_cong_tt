@@ -1,6 +1,8 @@
 import React, { memo } from 'react';
 import { TransactionRow, Personnel, PaymentBatch } from '../types';
-import { Trash2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Trash2, GripVertical } from 'lucide-react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface TransactionRowItemProps {
     row: TransactionRow;
@@ -42,8 +44,24 @@ export const TransactionRowItem = memo(({
     onUpdate,
     onDelete,
     onMove,
-    onNotify
-}: TransactionRowItemProps) => {
+    onNotify }: TransactionRowItemProps) => {
+
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id: row.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 10 : 'auto',
+        position: isDragging ? 'relative' as const : undefined,
+        backgroundColor: isDragging ? '#e0f2fe' : undefined, // Light blue when dragging
+    };
 
     const handleBasicSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         onUpdate(row.id, 'basicSalary', parseNumber(e.target.value));
@@ -59,7 +77,11 @@ export const TransactionRowItem = memo(({
     };
 
     return (
-        <tr className="hover:bg-blue-50 group transition-colors">
+        <tr
+            ref={setNodeRef}
+            style={style}
+            className={`hover:bg-blue-50 group transition-colors ${isDragging ? 'shadow-lg ring-2 ring-blue-400 opacity-90' : ''}`}
+        >
             <td className="p-2 text-center text-slate-400 font-mono text-sm">{index + 1}</td>
             <td className="p-2">
                 <input
@@ -146,18 +168,12 @@ export const TransactionRowItem = memo(({
             </td>
             <td className="p-2 text-center flex items-center justify-center gap-1 group-hover:opacity-100 opacity-0 transition-opacity">
                 <button
-                    onClick={() => onMove(row.id, 'UP')}
-                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                    title="Lên"
+                    {...attributes}
+                    {...listeners}
+                    className="p-1 text-slate-400 hover:text-blue-600 cursor-grab active:cursor-grabbing hover:bg-slate-100 rounded transition-all"
+                    title="Kéo để di chuyển"
                 >
-                    <ArrowUp className="w-4 h-4" />
-                </button>
-                <button
-                    onClick={() => onMove(row.id, 'DOWN')}
-                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                    title="Xuống"
-                >
-                    <ArrowDown className="w-4 h-4" />
+                    <GripVertical className="w-4 h-4" />
                 </button>
                 <button
                     onClick={() => onDelete(row.id)}
