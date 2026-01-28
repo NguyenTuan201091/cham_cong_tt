@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { TransactionRow, Personnel, PaymentBatch } from '../types';
-import { Trash2, ListOrdered, ArrowUp, ArrowDown } from 'lucide-react';
+import { Trash2, ListOrdered } from 'lucide-react';
 
 interface TransactionRowItemProps {
     row: TransactionRow;
@@ -31,10 +31,7 @@ const getPaidAmount = (row: TransactionRow) => {
     return Object.values(row.payments).reduce((sum, val) => sum + (Number(val) || 0), 0);
 };
 
-const getRemaining = (row: TransactionRow) => {
-    const total = Number(row.basicSalary) + Number(row.extraSalary);
-    return total - getPaidAmount(row);
-};
+
 
 export const TransactionRowItem = memo(({
     row,
@@ -139,13 +136,7 @@ export const TransactionRowItem = memo(({
                 </td>
             ))}
 
-            <td
-                className="p-2 text-right font-bold text-red-500 text-sm cursor-pointer hover:text-red-700 active:scale-95 transition-all select-none"
-                onDoubleClick={() => handleCopy(getRemaining(row) || 0)}
-                title="Double click để copy"
-            >
-                {formatCurrency(getRemaining(row) || 0)}
-            </td>
+
 
             <td className="p-2">
                 <input
@@ -163,20 +154,7 @@ export const TransactionRowItem = memo(({
                 >
                     <ListOrdered className="w-4 h-4" />
                 </button>
-                <button
-                    onClick={() => onMove(row.id, 'UP')}
-                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                    title="Lên"
-                >
-                    <ArrowUp className="w-4 h-4" />
-                </button>
-                <button
-                    onClick={() => onMove(row.id, 'DOWN')}
-                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                    title="Xuống"
-                >
-                    <ArrowDown className="w-4 h-4" />
-                </button>
+
                 <button
                     onClick={() => onDelete(row.id)}
                     className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-all ml-1"

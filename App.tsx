@@ -72,6 +72,13 @@ function App() {
         setLoading(false);
     };
 
+    const workbookTotal = useMemo(() => {
+        if (!workbook) return 0;
+        return workbook.sheets.reduce((acc, sheet) => {
+            return acc + sheet.rows.reduce((sum, row) => sum + (Number(row.basicSalary) || 0) + (Number(row.extraSalary) || 0), 0);
+        }, 0);
+    }, [workbook]);
+
     // Debounced Auto-save
     useEffect(() => {
         if (!workbook) return;
@@ -363,10 +370,7 @@ function App() {
         return Object.values(row.payments).reduce((sum, val) => sum + (Number(val) || 0), 0);
     };
 
-    const getRemaining = (row: TransactionRow) => {
-        const total = Number(row.basicSalary) + Number(row.extraSalary);
-        return total - getPaidAmount(row);
-    };
+
 
     // Export Excel
     const handleExport = () => {
@@ -505,6 +509,10 @@ function App() {
                                 <option value={2025}>2025</option>
                                 <option value={2026}>2026</option>
                             </select>
+                        </div>
+
+                        <div className="bg-emerald-100 text-emerald-800 px-3 py-2 rounded-md font-bold border border-emerald-200 shadow-sm whitespace-nowrap">
+                            Tổng tháng: {formatCurrency(workbookTotal)}
                         </div>
 
                         <button
@@ -669,7 +677,7 @@ function App() {
                                                                 {batch.name}
                                                             </th>
                                                         ))}
-                                                        <th className="p-3 border-b text-xs font-bold text-red-500 uppercase w-32 text-right">Còn Lại</th>
+
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase">Ghi Chú</th>
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-24 text-center">Tác Vụ</th>
                                                     </tr>
