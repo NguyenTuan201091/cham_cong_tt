@@ -1,8 +1,6 @@
 import React, { memo } from 'react';
 import { TransactionRow, Personnel, PaymentBatch } from '../types';
-import { Trash2, GripVertical, ListOrdered } from 'lucide-react';
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { Trash2, ListOrdered, ArrowUp, ArrowDown } from 'lucide-react';
 
 interface TransactionRowItemProps {
     row: TransactionRow;
@@ -48,23 +46,6 @@ export const TransactionRowItem = memo(({
     onMoveToPosition,
     onNotify }: TransactionRowItemProps) => {
 
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging
-    } = useSortable({ id: row.id });
-
-    const style = {
-        transform: CSS.Translate.toString(transform),
-        transition,
-        zIndex: isDragging ? 10 : 'auto',
-        position: isDragging ? 'relative' as const : undefined,
-        backgroundColor: isDragging ? '#e0f2fe' : undefined, // Light blue when dragging
-    };
-
     const handleBasicSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         onUpdate(row.id, 'basicSalary', parseNumber(e.target.value));
     };
@@ -89,11 +70,7 @@ export const TransactionRowItem = memo(({
     };
 
     return (
-        <tr
-            ref={setNodeRef}
-            style={style}
-            className={`hover:bg-blue-50 group transition-colors ${isDragging ? 'shadow-lg ring-2 ring-blue-400 opacity-90' : ''}`}
-        >
+        <tr className="hover:bg-blue-50 group transition-colors">
             <td className="p-2 text-center text-slate-400 font-mono text-sm">{index + 1}</td>
             <td className="p-2">
                 <input
@@ -187,12 +164,18 @@ export const TransactionRowItem = memo(({
                     <ListOrdered className="w-4 h-4" />
                 </button>
                 <button
-                    {...attributes}
-                    {...listeners}
-                    className="p-1 text-slate-400 hover:text-blue-600 cursor-grab active:cursor-grabbing hover:bg-slate-100 rounded transition-all"
-                    title="Kéo để di chuyển"
+                    onClick={() => onMove(row.id, 'UP')}
+                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                    title="Lên"
                 >
-                    <GripVertical className="w-4 h-4" />
+                    <ArrowUp className="w-4 h-4" />
+                </button>
+                <button
+                    onClick={() => onMove(row.id, 'DOWN')}
+                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                    title="Xuống"
+                >
+                    <ArrowDown className="w-4 h-4" />
                 </button>
                 <button
                     onClick={() => onDelete(row.id)}

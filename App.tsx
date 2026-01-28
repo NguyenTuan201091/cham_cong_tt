@@ -11,22 +11,6 @@ import {
     CreditCard, Calendar, Save, Moon, Sun, Monitor,
     Copy, Building2, Briefcase, User, Wallet, Search, Loader2
 } from 'lucide-react';
-import {
-    DndContext,
-    closestCenter,
-    KeyboardSensor,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    DragEndEvent
-} from '@dnd-kit/core';
-import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import {
-    arrayMove,
-    SortableContext,
-    sortableKeyboardCoordinates,
-    verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
 
 const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -276,17 +260,7 @@ function App() {
         });
     }, []);
 
-    const reorderRow = useCallback((sheetId: string, fromIndex: number, toIndex: number) => {
-        setWorkbook(prev => {
-            if (!prev) return prev;
-            const updatedSheets = prev.sheets.map(sheet => {
-                if (sheet.id !== sheetId) return sheet;
-                const newRows = arrayMove(sheet.rows, fromIndex, toIndex);
-                return { ...sheet, rows: newRows };
-            });
-            return { ...prev, sheets: updatedSheets };
-        });
-    }, []);
+
 
     const moveRowToAbsoluteIndex = useCallback((sheetId: string, rowId: string, targetStt: number) => {
         setWorkbook(prev => {
@@ -304,7 +278,9 @@ function App() {
 
                 if (fromIndex === toIndex) return sheet;
 
-                const newRows = arrayMove(sheet.rows, fromIndex, toIndex);
+                const newRows = [...sheet.rows];
+                const [movedRow] = newRows.splice(fromIndex, 1);
+                newRows.splice(toIndex, 0, movedRow);
                 return { ...sheet, rows: newRows };
             });
             return { ...prev, sheets: updatedSheets };
@@ -482,29 +458,6 @@ function App() {
     const handleRowMoveToPosition = useCallback((rowId: string, targetStt: number) => {
         if (activeSheetId) moveRowToAbsoluteIndex(activeSheetId, rowId, targetStt);
     }, [activeSheetId, moveRowToAbsoluteIndex]);
-
-    // DnD Sensors
-    const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 8, // Require 8px movement before drag starts prevents accidental drags on clicks
-            },
-        }),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
-
-    const handleDragEnd = (event: DragEndEvent) => {
-        const { active, over } = event;
-        if (!over || !activeSheetId || !activeSheet) return;
-
-        if (active.id !== over.id) {
-            const oldIndex = activeSheet.rows.findIndex((row) => row.id === active.id);
-            const newIndex = activeSheet.rows.findIndex((row) => row.id === over.id);
-            reorderRow(activeSheetId, oldIndex, newIndex);
-        }
-    };
 
     return (
         <div className="min-h-screen bg-slate-100 p-4">
@@ -722,41 +675,29 @@ function App() {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100">
-                                                    <DndContext
-                                                        sensors={sensors}
-                                                        collisionDetection={closestCenter}
-                                                        onDragEnd={handleDragEnd}
-                                                        modifiers={[restrictToVerticalAxis]}
-                                                    >
-                                                        <SortableContext
-                                                            items={activeSheet.rows.map(r => r.id)}
-                                                            strategy={verticalListSortingStrategy}
-                                                        >
-                                                            {activeSheet.rows
-                                                                .filter(row => {
-                                                                    const nameMatch = row.beneficiary.toLowerCase().includes(searchTerm.toLowerCase());
-                                                                    if (filterCompany === 'ALL') return nameMatch;
+                                                    {activeSheet.rows
+                                                        .filter(row => {
+                                                            const nameMatch = row.beneficiary.toLowerCase().includes(searchTerm.toLowerCase());
+                                                            if (filterCompany === 'ALL') return nameMatch;
 
-                                                                    const person = personnelList.find(p => p.name.toUpperCase() === row.beneficiary.toUpperCase());
-                                                                    const companyMatch = person ? person.company === filterCompany : false;
+                                                            const person = personnelList.find(p => p.name.toUpperCase() === row.beneficiary.toUpperCase());
+                                                            const companyMatch = person ? person.company === filterCompany : false;
 
-                                                                    return nameMatch && companyMatch;
-                                                                })
-                                                                .map((row, idx) => (
-                                                                    <TransactionRowItem
-                                                                        key={row.id}
-                                                                        row={row}
-                                                                        index={idx}
-                                                                        paymentBatches={activeSheet.paymentBatches || []}
-                                                                        onUpdate={handleRowUpdate}
-                                                                        onDelete={handleRowDelete}
-                                                                        onMove={handleRowMove}
-                                                                        onMoveToPosition={handleRowMoveToPosition}
-                                                                        onNotify={(msg) => setToastMessage(msg)}
-                                                                    />
-                                                                ))}
-                                                        </SortableContext>
-                                                    </DndContext>
+                                                            return nameMatch && companyMatch;
+                                                        })
+                                                        .map((row, idx) => (
+                                                            <TransactionRowItem
+                                                                key={row.id}
+                                                                row={row}
+                                                                index={idx}
+                                                                paymentBatches={activeSheet.paymentBatches || []}
+                                                                onUpdate={handleRowUpdate}
+                                                                onDelete={handleRowDelete}
+                                                                onMove={handleRowMove}
+                                                                onMoveToPosition={handleRowMoveToPosition}
+                                                                onNotify={(msg) => setToastMessage(msg)}
+                                                            />
+                                                        ))}
                                                 </tbody>
                                             </table>
 
