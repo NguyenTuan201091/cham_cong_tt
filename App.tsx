@@ -660,7 +660,6 @@ function App() {
                                                                 row={row}
                                                                 index={idx}
                                                                 paymentBatches={activeSheet.paymentBatches || []}
-                                                                personnelList={personnelList}
                                                                 onUpdate={handleRowUpdate}
                                                                 onDelete={handleRowDelete}
                                                                 onMove={handleRowMove}
@@ -687,6 +686,13 @@ function App() {
                         </div>
                     </div>
                 )}
+
+                {/* Global Datalist for Performance */}
+                <datalist id="personnel-suggestions">
+                    {personnelList.map(p => (
+                        <option key={p.id} value={p.name}>{p.company}</option>
+                    ))}
+                </datalist>
 
                 {/* Personnel View */}
                 {!loading && view === 'PERSONNEL' && (

@@ -6,7 +6,6 @@ interface TransactionRowItemProps {
     row: TransactionRow;
     index: number;
     paymentBatches: PaymentBatch[];
-    personnelList: Personnel[];
     onUpdate: (rowId: string, field: keyof TransactionRow, value: any) => void;
     onDelete: (rowId: string) => void;
     onMove: (rowId: string, direction: 'UP' | 'DOWN') => void;
@@ -40,7 +39,6 @@ export const TransactionRowItem = memo(({
     row,
     index,
     paymentBatches,
-    personnelList,
     onUpdate,
     onDelete,
     onMove,
@@ -87,11 +85,6 @@ export const TransactionRowItem = memo(({
                     onChange={(e) => onUpdate(row.id, 'beneficiary', e.target.value.toUpperCase())}
                     placeholder="NGUYEN VAN A"
                 />
-                <datalist id="personnel-suggestions">
-                    {personnelList.map(p => (
-                        <option key={p.id} value={p.name}>{p.company}</option>
-                    ))}
-                </datalist>
             </td>
             <td className="p-2">
                 <input
@@ -187,8 +180,7 @@ export const TransactionRowItem = memo(({
     return (
         prevProps.row === nextProps.row &&
         prevProps.index === nextProps.index &&
-        prevProps.paymentBatches === nextProps.paymentBatches && // Assuming array ref changes only when batches change
-        prevProps.personnelList === nextProps.personnelList // Assuming list ref changes only when list changes
+        prevProps.paymentBatches === nextProps.paymentBatches // Assuming array ref changes only when batches change
         // functions are assumed stable if useCallback is used in parent
     );
 });
