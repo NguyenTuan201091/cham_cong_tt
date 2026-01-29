@@ -10,6 +10,21 @@ const defaultData: AppData = {
 
 export const api = {
   async getData(): Promise<AppData> {
+    try {
+      const res = await fetch('/api/storage');
+      if (res.ok) {
+        const data = await res.json();
+        // Check if data is empty object (fresh db)
+        if (data && Object.keys(data).length > 0) {
+          console.log('Loaded data from Cloud');
+          return data;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch from cloud, falling back to local', e);
+    }
+
+    // Fallback to local
     const json = localStorage.getItem(STORAGE_KEY);
     if (!json) return defaultData;
     try {
@@ -20,7 +35,19 @@ export const api = {
   },
 
   async saveData(data: AppData): Promise<void> {
+    // Save local first (latency compensation)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+    try {
+      await fetch('/api/storage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      console.log('Saved to Cloud');
+    } catch (e) {
+      console.error('Failed to save to cloud', e);
+    }
   },
 
   // Helper to get specific workbook or create if missing

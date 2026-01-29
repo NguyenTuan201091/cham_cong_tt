@@ -468,34 +468,42 @@ function App() {
             <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-lg border border-slate-200 min-h-[80vh] flex flex-col">
 
                 {/* Header */}
-                <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50 rounded-t-xl">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-blue-600 text-white p-2 rounded-lg">
-                            <FileSpreadsheet className="w-6 h-6" />
+                <div className="p-2 md:p-4 border-b border-slate-200 flex flex-col md:flex-row justify-between items-center gap-2 md:gap-4 bg-slate-50 rounded-t-xl sticky top-0 z-30">
+                    <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-start">
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setIsSidebarCollapsed(false)}
+                                className="md:hidden p-2 text-slate-500 hover:bg-slate-200 rounded-lg"
+                            >
+                                <Layout className="w-6 h-6" />
+                            </button>
+                            <div className="bg-blue-600 text-white p-1.5 md:p-2 rounded-lg">
+                                <FileSpreadsheet className="w-5 h-5 md:w-6 md:h-6" />
+                            </div>
+                            <h1 className="text-lg md:text-xl font-bold text-slate-800 truncate">Quản Lý Lương</h1>
                         </div>
-                        <h1 className="text-xl font-bold text-slate-800">Quản Lý Lương</h1>
 
-                        <div className="flex bg-slate-200 rounded-lg p-1 ml-4">
+                        <div className="flex bg-slate-200 rounded-lg p-1 ml-0 md:ml-4">
                             <button
                                 onClick={() => { setView('SHEETS'); setSearchTerm(''); }}
-                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${view === 'SHEETS' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`px-2 md:px-4 py-1.5 rounded-md text-xs md:text-sm font-medium transition-all ${view === 'SHEETS' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Bảng Lương
                             </button>
                             <button
                                 onClick={() => { setView('PERSONNEL'); setSearchTerm(''); }}
-                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${view === 'PERSONNEL' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`px-2 md:px-4 py-1.5 rounded-md text-xs md:text-sm font-medium transition-all ${view === 'PERSONNEL' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Nhân Sự
                             </button>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
-                        <div className="flex bg-white rounded-md border border-slate-300 overflow-hidden shadow-sm">
+                    <div className="flex items-center gap-2 w-full md:w-auto justify-end overflow-x-auto pb-1 md:pb-0">
+                        <div className="flex bg-white rounded-md border border-slate-300 overflow-hidden shadow-sm flex-shrink-0">
                             <select
                                 value={month} onChange={(e) => setMonth(Number(e.target.value))}
-                                className="px-3 py-2 bg-transparent outline-none border-r hover:bg-slate-50 cursor-pointer"
+                                className="px-2 md:px-3 py-1.5 md:py-2 bg-transparent outline-none border-r hover:bg-slate-50 cursor-pointer text-sm"
                             >
                                 {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
                                     <option key={m} value={m}>Tháng {m}</option>
@@ -503,7 +511,7 @@ function App() {
                             </select>
                             <select
                                 value={year} onChange={(e) => setYear(Number(e.target.value))}
-                                className="px-3 py-2 bg-transparent outline-none hover:bg-slate-50 cursor-pointer"
+                                className="px-2 md:px-3 py-1.5 md:py-2 bg-transparent outline-none hover:bg-slate-50 cursor-pointer text-sm"
                             >
                                 <option value={2024}>2024</option>
                                 <option value={2025}>2025</option>
@@ -511,23 +519,23 @@ function App() {
                             </select>
                         </div>
 
-                        <div className="bg-emerald-100 text-emerald-800 px-3 py-2 rounded-md font-bold border border-emerald-200 shadow-sm whitespace-nowrap">
-                            Tổng tháng: {formatCurrency(workbookTotal)}
+                        <div className="bg-emerald-100 text-emerald-800 px-2 md:px-3 py-1.5 md:py-2 rounded-md font-bold border border-emerald-200 shadow-sm whitespace-nowrap text-sm flex-shrink-0">
+                            {formatCurrency(workbookTotal)}
                         </div>
 
                         <button
                             onClick={copyFromPreviousMonth}
-                            className="flex items-center px-4 py-2 bg-slate-700 text-white rounded-md hover:bg-slate-800 font-medium shadow-sm transition-colors"
+                            className="flex items-center px-3 py-2 bg-slate-700 text-white rounded-md hover:bg-slate-800 font-medium shadow-sm transition-colors text-sm flex-shrink-0"
                             title="Sao chép từ tháng trước"
                         >
-                            <Copy className="w-4 h-4 mr-2" /> Sao chép tháng trước
+                            <Copy className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Sao chép</span>
                         </button>
 
                         <button
                             onClick={handleExport}
-                            className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm transition-colors"
+                            className="flex items-center px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm transition-colors text-sm flex-shrink-0"
                         >
-                            <Download className="w-4 h-4 mr-2" /> Xuất Excel
+                            <Download className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Xuất Excel</span>
                         </button>
                     </div>
                 </div>
@@ -548,38 +556,57 @@ function App() {
 
                 {/* Content */}
                 {!loading && workbook && view === 'SHEETS' && (
-                    <div className="flex flex-1 flex-col md:flex-row overflow-hidden">
+                    <div className="flex flex-1 flex-col md:flex-row overflow-hidden relative">
+
+                        {/* Mobile Sidebar Overlay */}
+                        {!isSidebarCollapsed && (
+                            <div
+                                className="md:hidden fixed inset-0 bg-black/50 z-40"
+                                onClick={() => setIsSidebarCollapsed(true)}
+                            />
+                        )}
 
                         {/* Sidebar / Tabs */}
                         <div className={`
+                            absolute md:relative z-50 h-full
                             bg-slate-50 border-r border-slate-200 flex flex-col transition-all duration-300
-                            ${isSidebarCollapsed ? 'w-16' : 'w-full md:w-64'}
+                            ${isSidebarCollapsed ? '-translate-x-full md:translate-x-0 md:w-16' : 'translate-x-0 w-64 md:w-64'}
                         `}>
                             <div className="p-3 font-semibold text-xs text-slate-500 uppercase tracking-wider flex justify-between items-center h-12">
-                                {!isSidebarCollapsed && <span>Danh Sách Sheets</span>}
+                                {(!isSidebarCollapsed || window.innerWidth >= 768) && <span>Danh Sách Sheets</span>}
+
+                                {/* Desktop Collapse Button */}
                                 <button
                                     onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                                    className="p-1 hover:bg-slate-200 rounded text-slate-500 ml-auto"
+                                    className="hidden md:block p-1 hover:bg-slate-200 rounded text-slate-500 ml-auto"
                                     title={isSidebarCollapsed ? "Mở rộng" : "Thu gọn"}
                                 >
                                     {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
                                 </button>
+
+                                {/* Mobile Close Button */}
+                                <button
+                                    onClick={() => setIsSidebarCollapsed(true)}
+                                    className="md:hidden p-1 hover:bg-slate-200 rounded text-slate-500 ml-auto"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
                             </div>
                             <div className="p-4 border-b border-slate-200">
                                 <button
-                                    onClick={addSheet}
+                                    onClick={() => { addSheet(); setIsSidebarCollapsed(true); }}
                                     className="w-full flex justify-center items-center py-2 border-2 border-dashed border-slate-300 rounded-lg text-slate-500 hover:border-blue-500 hover:text-blue-600 transition-all font-medium"
                                     title="Thêm Sheet"
                                 >
                                     <Plus className="w-4 h-4" />
-                                    {!isSidebarCollapsed && <span className="ml-2">Thêm Sheet</span>}
+                                    {(!isSidebarCollapsed || window.innerWidth < 768) && <span className="ml-2">Thêm Sheet</span>}
                                 </button>
                             </div>
                             <div className="flex-1 overflow-y-auto">
                                 {workbook.sheets.map(sheet => (
                                     <div
                                         key={sheet.id}
-                                        onClick={() => setActiveSheetId(sheet.id)}
+                                        onClick={() => { setActiveSheetId(sheet.id); setIsSidebarCollapsed(true); }}
                                         className={`
                                             group flex items-center justify-between px-3 py-2 cursor-pointer border-l-4 transition-all
                                             ${activeSheetId === sheet.id
@@ -590,10 +617,10 @@ function App() {
                                     >
                                         <div className="flex items-center overflow-hidden">
                                             {activeSheetId === sheet.id ? <Building2 className="w-4 h-4 mr-2 flex-shrink-0" /> : <Briefcase className="w-4 h-4 mr-2 flex-shrink-0 text-slate-400" />}
-                                            {!isSidebarCollapsed && <span className="truncate font-medium">{sheet.name}</span>}
+                                            {(!isSidebarCollapsed || window.innerWidth < 768) && <span className="truncate font-medium">{sheet.name}</span>}
                                         </div>
-                                        {!isSidebarCollapsed && (
-                                            <div className="flex opacity-0 group-hover:opacity-100 transition-opacity gap-1">
+                                        {(!isSidebarCollapsed || window.innerWidth < 768) && (
+                                            <div className="flex opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity gap-1">
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); renameSheet(sheet.id); }}
                                                     className="p-1 hover:bg-blue-100 rounded text-blue-600"
@@ -620,15 +647,15 @@ function App() {
                         <div className="flex-1 flex flex-col overflow-hidden bg-white">
                             {activeSheet ? (
                                 <>
-                                    <div className="p-4 bg-white border-b border-slate-100 flex justify-between items-center shadow-sm z-10 gap-4">
-                                        <div className="flex items-center gap-4 flex-1">
-                                            <h2 className="text-lg font-bold text-slate-800 flex items-center whitespace-nowrap">
-                                                <span className="text-slate-400 mr-2 font-normal">Sheet:</span>
+                                    <div className="p-2 md:p-4 bg-white border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center shadow-sm z-10 gap-2 md:gap-4 sticky top-0 md:static">
+                                        <div className="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 flex-1 w-full">
+                                            <h2 className="text-sm md:text-lg font-bold text-slate-800 flex items-center whitespace-nowrap">
+                                                <span className="text-slate-400 mr-2 font-normal hidden md:inline">Sheet:</span>
                                                 {activeSheet.name}
                                             </h2>
 
                                             {/* Search Input for Sheets */}
-                                            <div className="flex gap-2 flex-1 max-w-lg">
+                                            <div className="flex gap-2 flex-1 w-full md:max-w-lg">
                                                 <div className="relative flex-1">
                                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                         <Search className="h-4 w-4 text-slate-400" />
@@ -637,14 +664,14 @@ function App() {
                                                         type="text"
                                                         value={searchTerm}
                                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                                        className="block w-full pl-10 pr-3 py-1.5 border border-slate-300 rounded-md leading-5 bg-white placeholder-slate-400 focus:outline-none focus:placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 sm:text-sm"
-                                                        placeholder="Tìm kiếm theo tên..."
+                                                        className="block w-full pl-10 pr-3 py-1.5 border border-slate-300 rounded-md leading-5 bg-white placeholder-slate-400 focus:outline-none focus:placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-xs md:text-sm"
+                                                        placeholder="Tìm tên..."
                                                     />
                                                 </div>
                                                 <select
                                                     value={filterCompany}
                                                     onChange={(e) => setFilterCompany(e.target.value)}
-                                                    className="block w-40 px-3 py-1.5 border border-slate-300 rounded-md leading-5 bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 sm:text-sm"
+                                                    className="block w-32 md:w-40 px-2 md:px-3 py-1.5 border border-slate-300 rounded-md leading-5 bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-xs md:text-sm"
                                                 >
                                                     <option value="ALL">Tất cả C.Ty</option>
                                                     {companies.map(c => (
@@ -654,65 +681,67 @@ function App() {
                                             </div>
                                         </div>
 
-                                        <div className="text-sm text-slate-500 whitespace-nowrap">
-                                            Tổng cộng: <span className="font-bold text-emerald-600 text-lg ml-2">
+                                        <div className="text-xs md:text-sm text-slate-500 whitespace-nowrap self-end md:self-auto">
+                                            Tổng: <span className="font-bold text-emerald-600 text-sm md:text-lg ml-1 md:ml-2">
                                                 {formatCurrency(activeSheet.rows.reduce((sum, r) => sum + (Number(r.basicSalary) + Number(r.extraSalary)), 0))}
                                             </span>
                                         </div>
                                     </div>
 
-                                    <div className="flex-1 overflow-auto p-4">
-                                        <div className="border rounded-lg shadow-sm">
-                                            <table className="w-full text-left border-collapse">
-                                                <thead className="bg-slate-100 sticky top-0 z-10 shadow-sm">
-                                                    <tr>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-12 text-center">STT</th>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-36">Số Tài Khoản</th>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-20">Ngân Hàng</th>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-60">Tên Thụ Hưởng</th>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-32 text-right">Lương CB</th>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-32 text-right">Lương Ngoài</th>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-32 text-right">Tổng Tiền</th>
-                                                        {activeSheet.paymentBatches?.map(batch => (
-                                                            <th key={batch.id} className="p-3 border-b text-xs font-bold text-blue-600 uppercase w-32 text-right bg-blue-50/50">
-                                                                {batch.name}
-                                                            </th>
-                                                        ))}
+                                    <div className="flex-1 overflow-auto p-1 md:p-4 bg-slate-50 md:bg-white">
+                                        <div className="bg-white border rounded-lg shadow-sm">
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left border-collapse min-w-[800px] md:min-w-full">
+                                                    <thead className="bg-slate-100 sticky top-0 z-20 shadow-sm text-xs">
+                                                        <tr>
+                                                            <th className="p-2 md:p-3 border-b font-bold text-slate-500 uppercase w-10 md:w-12 text-center sticky left-0 bg-slate-100 z-10">STT</th>
+                                                            <th className="p-2 md:p-3 border-b font-bold text-slate-500 uppercase w-28 md:w-36">Số TK</th>
+                                                            <th className="p-2 md:p-3 border-b font-bold text-slate-500 uppercase w-16 md:w-20">NH</th>
+                                                            <th className="p-2 md:p-3 border-b font-bold text-slate-500 uppercase w-48 md:w-60 sticky left-[40px] md:left-[48px] bg-slate-100 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Tên Thụ Hưởng</th>
+                                                            <th className="p-2 md:p-3 border-b font-bold text-slate-500 uppercase w-24 md:w-32 text-right">Lương CB</th>
+                                                            <th className="p-2 md:p-3 border-b font-bold text-slate-500 uppercase w-24 md:w-32 text-right">Lương Ngoài</th>
+                                                            <th className="p-2 md:p-3 border-b font-bold text-slate-500 uppercase w-24 md:w-32 text-right">Tổng Tiền</th>
+                                                            {activeSheet.paymentBatches?.map(batch => (
+                                                                <th key={batch.id} className="p-2 md:p-3 border-b font-bold text-blue-600 uppercase w-24 md:w-32 text-right bg-blue-50/50">
+                                                                    {batch.name}
+                                                                </th>
+                                                            ))}
 
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase min-w-[200px]">Ghi Chú</th>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-24 text-center">Tác Vụ</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-slate-100">
-                                                    {activeSheet.rows
-                                                        .filter(row => {
-                                                            const nameMatch = row.beneficiary.toLowerCase().includes(searchTerm.toLowerCase());
-                                                            if (filterCompany === 'ALL') return nameMatch;
+                                                            <th className="p-2 md:p-3 border-b font-bold text-slate-500 uppercase min-w-[150px]">Ghi Chú</th>
+                                                            <th className="p-2 md:p-3 border-b font-bold text-slate-500 uppercase w-20 md:w-24 text-center">Tác Vụ</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100">
+                                                        {activeSheet.rows
+                                                            .filter(row => {
+                                                                const nameMatch = row.beneficiary.toLowerCase().includes(searchTerm.toLowerCase());
+                                                                if (filterCompany === 'ALL') return nameMatch;
 
-                                                            const person = personnelList.find(p => p.name.toUpperCase() === row.beneficiary.toUpperCase());
-                                                            const companyMatch = person ? person.company === filterCompany : false;
+                                                                const person = personnelList.find(p => p.name.toUpperCase() === row.beneficiary.toUpperCase());
+                                                                const companyMatch = person ? person.company === filterCompany : false;
 
-                                                            return nameMatch && companyMatch;
-                                                        })
-                                                        .map((row, idx) => (
-                                                            <TransactionRowItem
-                                                                key={row.id}
-                                                                row={row}
-                                                                index={idx}
-                                                                paymentBatches={activeSheet.paymentBatches || []}
-                                                                onUpdate={handleRowUpdate}
-                                                                onDelete={handleRowDelete}
-                                                                onMove={handleRowMove}
-                                                                onMoveToPosition={handleRowMoveToPosition}
-                                                                onNotify={(msg) => setToastMessage(msg)}
-                                                            />
-                                                        ))}
-                                                </tbody>
-                                            </table>
+                                                                return nameMatch && companyMatch;
+                                                            })
+                                                            .map((row, idx) => (
+                                                                <TransactionRowItem
+                                                                    key={row.id}
+                                                                    row={row}
+                                                                    index={idx}
+                                                                    paymentBatches={activeSheet.paymentBatches || []}
+                                                                    onUpdate={handleRowUpdate}
+                                                                    onDelete={handleRowDelete}
+                                                                    onMove={handleRowMove}
+                                                                    onMoveToPosition={handleRowMoveToPosition}
+                                                                    onNotify={(msg) => setToastMessage(msg)}
+                                                                />
+                                                            ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
 
                                             <button
                                                 onClick={() => addRow(activeSheet.id)}
-                                                className="w-full py-3 flex items-center justify-center text-slate-500 hover:bg-slate-50 border-t border-dashed border-slate-200 font-medium transition-colors"
+                                                className="w-full py-3 md:py-4 flex items-center justify-center text-slate-500 hover:bg-slate-50 border-t border-dashed border-slate-200 font-medium transition-colors text-sm md:text-base sticky left-0"
                                             >
                                                 <Plus className="w-4 h-4 mr-2" /> Thêm dòng mới
                                             </button>
