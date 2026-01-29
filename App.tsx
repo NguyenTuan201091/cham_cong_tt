@@ -667,19 +667,19 @@ function App() {
                                                 <thead className="bg-slate-100 sticky top-0 z-10 shadow-sm">
                                                     <tr>
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-12 text-center">STT</th>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-48">Số Tài Khoản</th>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-32">Ngân Hàng</th>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-80">Tên Thụ Hưởng</th>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-40 text-right">Lương CB</th>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-40 text-right">Lương Ngoài</th>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-40 text-right">Tổng Tiền</th>
+                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-36">Số Tài Khoản</th>
+                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-20">Ngân Hàng</th>
+                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-60">Tên Thụ Hưởng</th>
+                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-32 text-right">Lương CB</th>
+                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-32 text-right">Lương Ngoài</th>
+                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-32 text-right">Tổng Tiền</th>
                                                         {activeSheet.paymentBatches?.map(batch => (
                                                             <th key={batch.id} className="p-3 border-b text-xs font-bold text-blue-600 uppercase w-32 text-right bg-blue-50/50">
                                                                 {batch.name}
                                                             </th>
                                                         ))}
 
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase">Ghi Chú</th>
+                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase min-w-[200px]">Ghi Chú</th>
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-24 text-center">Tác Vụ</th>
                                                     </tr>
                                                 </thead>
