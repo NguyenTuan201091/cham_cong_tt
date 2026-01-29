@@ -668,7 +668,7 @@ function App() {
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-12 text-center">STT</th>
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-48">Số Tài Khoản</th>
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-32">Ngân Hàng</th>
-                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-96">Tên Thụ Hưởng</th>
+                                                        <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-80">Tên Thụ Hưởng</th>
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-40 text-right">Lương CB</th>
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-40 text-right">Lương Ngoài</th>
                                                         <th className="p-3 border-b text-xs font-bold text-slate-500 uppercase w-40 text-right">Tổng Tiền</th>
