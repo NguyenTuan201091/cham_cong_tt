@@ -565,6 +565,16 @@ function App() {
                                     {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
                                 </button>
                             </div>
+                            <div className="p-4 border-b border-slate-200">
+                                <button
+                                    onClick={addSheet}
+                                    className="w-full flex justify-center items-center py-2 border-2 border-dashed border-slate-300 rounded-lg text-slate-500 hover:border-blue-500 hover:text-blue-600 transition-all font-medium"
+                                    title="Thêm Sheet"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    {!isSidebarCollapsed && <span className="ml-2">Thêm Sheet</span>}
+                                </button>
+                            </div>
                             <div className="flex-1 overflow-y-auto">
                                 {workbook.sheets.map(sheet => (
                                     <div
@@ -603,16 +613,7 @@ function App() {
                                     </div>
                                 ))}
                             </div>
-                            <div className="p-4 border-t border-slate-200">
-                                <button
-                                    onClick={addSheet}
-                                    className="w-full flex justify-center items-center py-2 border-2 border-dashed border-slate-300 rounded-lg text-slate-500 hover:border-blue-500 hover:text-blue-600 transition-all font-medium"
-                                    title="Thêm Sheet"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    {!isSidebarCollapsed && <span className="ml-2">Thêm Sheet</span>}
-                                </button>
-                            </div>
+
                         </div>
 
                         {/* Main Table Area */}
