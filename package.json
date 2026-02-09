@@ -2,6 +2,7 @@
   "name": "chấm-công-công-nhật-t&t",
   "private": true,
   "version": "0.0.0",
+  "homepage": "https://nguyentuan201091.github.io/cham_cong_tt/",
   "type": "module",
   "scripts": {
     "dev": "vite",

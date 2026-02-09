@@ -199,18 +199,47 @@ function App() {
 
                     // Auto-fill logic
                     if (field === 'beneficiary') {
-                        const inputVal = (value as string).trim();
-                        // 1. Try exact match "Name - Company"
-                        let person = personnelList.find(p => `${p.name} - ${p.company}`.toLowerCase() === inputVal.toLowerCase());
+                        const normalize = (str: string) => str.trim().replace(/\s+/g, ' ').toLowerCase();
+                        const inputVal = (value as string);
+                        const inputNormalized = normalize(inputVal);
 
-                        // 2. If not found, try match only Name (fallback)
-                        if (!person) {
-                            person = personnelList.find(p => p.name.toLowerCase() === inputVal.toLowerCase());
+                        // 1. Try exact match "Name - Company"
+                        let person = personnelList.find(p => {
+                            const full = `${p.name} - ${p.company}`;
+                            return normalize(full) === inputNormalized;
+                        });
+
+                        // 2. If input has a hyphen but exact match failed (e.g. slight spacing issues), try to find by fuzzy parts
+                        // This prevents falling back to just "Name" immediately if the user intended to specify company
+                        if (!person && inputVal.includes('-')) {
+                            const [namePart, ...companyParts] = inputVal.split('-');
+                            const companyPart = companyParts.join('-').trim(); // Join back in case company name has hyphen? Unlikely but safe.
+
+                            if (namePart && companyPart) {
+                                const nName = normalize(namePart);
+                                const nCompany = normalize(companyPart);
+
+                                person = personnelList.find(p =>
+                                    normalize(p.name) === nName && normalize(p.company).includes(nCompany)
+                                );
+                            }
+                        }
+
+                        // 3. Last fallback: Try match only Name
+                        // ONLY if input does NOT look like it has a company part
+                        // (i.e. user just typed "Nguyen Van A" and hit enter, without company)
+                        if (!person && !inputVal.includes('-')) {
+                            person = personnelList.find(p => normalize(p.name) === inputNormalized);
                         }
 
                         if (person) {
                             newRow.accountNo = person.accountNo;
+                            // newRow.bankName = person.bankName; // Don't auto-fill bank if user already typed it? Or always overwrite?
+                            // Existing logic was overwriting, let's keep it.
                             newRow.bankName = person.bankName;
+
+                            // Also update the beneficiary field to the canonical "Name - Company" to be clean
+                            // newRow.beneficiary = `${person.name} - ${person.company}`; // Optional: auto-format the input
                         }
                     }
 
