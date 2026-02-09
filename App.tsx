@@ -199,7 +199,15 @@ function App() {
 
                     // Auto-fill logic
                     if (field === 'beneficiary') {
-                        const person = personnelList.find(p => p.name.toLowerCase() === (value as string).toLowerCase());
+                        const inputVal = (value as string).trim();
+                        // 1. Try exact match "Name - Company"
+                        let person = personnelList.find(p => `${p.name} - ${p.company}`.toLowerCase() === inputVal.toLowerCase());
+
+                        // 2. If not found, try match only Name (fallback)
+                        if (!person) {
+                            person = personnelList.find(p => p.name.toLowerCase() === inputVal.toLowerCase());
+                        }
+
                         if (person) {
                             newRow.accountNo = person.accountNo;
                             newRow.bankName = person.bankName;
@@ -408,7 +416,7 @@ function App() {
                 totalAmount += total;
                 wsData.push([
                     idx + 1,
-                    row.accountNo,
+                    String(row.accountNo), // Force string
                     row.bankName,
                     row.beneficiary.toUpperCase(),
                     row.basicSalary,
@@ -422,6 +430,18 @@ function App() {
             wsData.push(["", "", "", "TỔNG CỘNG:", "", "", totalAmount, ""]);
 
             const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+            // Format cells to Text where needed
+            // Range for Account No (Column B - index 1)
+            // Rows start from index 4 (0-based) because: Title(0), Subtitle(1), Empty(2), Headers(3), Data starts at 4
+            const range = XLSX.utils.decode_range(ws['!ref'] || "A1:A1");
+            for (let R = 4; R <= range.e.r; ++R) {
+                const cellAddress = XLSX.utils.encode_cell({ r: R, c: 1 }); // Column B
+                if (ws[cellAddress]) {
+                    ws[cellAddress].t = 's'; // Set type to string
+                    ws[cellAddress].z = '@'; // Set format to Text
+                }
+            }
 
             // Col Widths
             ws['!cols'] = [
@@ -761,7 +781,7 @@ function App() {
                 {/* Global Datalist for Performance */}
                 <datalist id="personnel-suggestions">
                     {personnelList.map(p => (
-                        <option key={p.id} value={p.name}>{p.company}</option>
+                        <option key={p.id} value={`${p.name} - ${p.company}`}>{p.company}</option>
                     ))}
                 </datalist>
 
